@@ -26,7 +26,8 @@ This is useful when you want to implement optional branches using the
 #![feature(async_await)]
 #![recursion_limit="128"]
 
-use futures::{future, stream, OptionExt as _, StreamExt as _};
+use futures::{future, stream, StreamExt as _};
+use futures_option::OptionExt as _;
 
 futures::executor::block_on(async {
     let mut value = None;
