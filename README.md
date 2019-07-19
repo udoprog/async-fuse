@@ -1,5 +1,7 @@
 # Option Extensions for Futures
 
+[![Build Status](https://travis-ci.org/udoprog/futures-option.svg?branch=master)](https://travis-ci.org/udoprog/futures-option)
+
 Extension traits for dealing with optional futures and streams.
 
 # Examples
