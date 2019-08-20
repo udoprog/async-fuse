@@ -13,7 +13,7 @@ Extension traits for dealing with optional futures and streams
 """
 
 [dependencies]
-futures-preview = "0.3.0-alpha.17"
+futures-preview = "0.3.0-alpha.18"
 
 [dev-dependencies]
-futures-preview = {version = "0.3.0-alpha.17", features = ["nightly", "async-await"]}
+futures-preview = {version = "0.3.0-alpha.18", features = ["nightly", "async-await"]}

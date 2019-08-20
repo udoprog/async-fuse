@@ -158,7 +158,10 @@ where
     }
 }
 
-impl<'a, T> FusedFuture for Next<'a, T> {
+impl<'a, T> FusedFuture for Next<'a, T>
+where
+    T: Unpin + Stream,
+{
     fn is_terminated(&self) -> bool {
         self.stream.is_none()
     }
@@ -196,7 +199,10 @@ where
     }
 }
 
-impl<'a, T> FusedFuture for SelectNextSome<'a, T> {
+impl<'a, T> FusedFuture for SelectNextSome<'a, T>
+where
+    T: Unpin + Stream,
+{
     fn is_terminated(&self) -> bool {
         self.stream.is_none()
     }
@@ -228,7 +234,10 @@ where
     }
 }
 
-impl<'a, T> FusedFuture for Current<'a, T> {
+impl<'a, T> FusedFuture for Current<'a, T>
+where
+    T: Unpin + Future,
+{
     fn is_terminated(&self) -> bool {
         self.future.is_none()
     }
