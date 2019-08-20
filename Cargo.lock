@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "futures-option"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "futures-preview 0.3.0-alpha.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
