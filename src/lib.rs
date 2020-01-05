@@ -3,8 +3,6 @@
 //! # Examples
 //!
 //! ```rust
-//! #![feature(async_await)]
-//!
 //! use futures::future::{self, FusedFuture as _};
 //! use futures_option::OptionExt as _;
 //! # futures::executor::block_on(async {
@@ -20,7 +18,6 @@
 //! `select!` macro.
 //!
 //! ```rust
-//! #![feature(async_await)]
 //! #![recursion_limit="128"]
 //!
 //! use futures::{future, stream, StreamExt as _};
@@ -58,11 +55,7 @@
 //! [`Stream`]: futures_core::stream::Stream
 //! [`Future`]: futures_core::future::Future
 
-use futures::{
-    future::{FusedFuture, FutureExt as _},
-    ready,
-    stream::{Stream, StreamExt as _},
-};
+use futures_core::{ready, FusedFuture, Stream};
 use std::{
     future::Future,
     pin::Pin,
@@ -148,7 +141,7 @@ where
         assert!(self.stream.is_some(), "Next polled after terminated");
 
         if let Some(stream) = self.stream.as_mut() {
-            if let Some(result) = ready!(stream.poll_next_unpin(cx)) {
+            if let Some(result) = ready!(Pin::new(stream).poll_next(cx)) {
                 return Poll::Ready(Some(result));
             }
         }
@@ -188,7 +181,7 @@ where
         );
 
         if let Some(stream) = self.stream.as_mut() {
-            if let Some(result) = ready!(stream.poll_next_unpin(cx)) {
+            if let Some(result) = ready!(Pin::new(stream).poll_next(cx)) {
                 return Poll::Ready(result);
             }
         }
@@ -227,7 +220,7 @@ where
             .future
             .as_mut()
             .expect("Current polled after terminated");
-        let result = ready!(future.poll_unpin(cx));
+        let result = ready!(Pin::new(future).poll(cx));
         // NB: we do this to mark the future as terminated.
         *self.future = None;
         Poll::Ready(result)

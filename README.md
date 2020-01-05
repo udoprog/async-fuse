@@ -7,8 +7,6 @@ Extension traits for dealing with optional futures and streams.
 # Examples
 
 ```rust
-#![feature(async_await)]
-
 use futures::{future::{self, FusedFuture as _}};
 use futures_option::OptionExt as _;
 
@@ -25,7 +23,6 @@ This is useful when you want to implement optional branches using the
 `select!` macro.
 
 ```rust
-#![feature(async_await)]
 #![recursion_limit="128"]
 
 use futures::{future, stream, StreamExt as _};
