@@ -7,7 +7,7 @@
 //! This is especially useful in combination with optional branches using
 //! [tokio::select], where the future being polled isn't necessarily set.
 //!
-//! A similar structure is provided by futures-rs called [`Fuse`]. This however
+//! A similar structure is provided by futures-rs called [Fuse]. This however
 //! lacks some of the flexibility needed to interact with tokio's streaming
 //! types like [Interval] since these no longer implement [Stream].
 //!
@@ -46,7 +46,10 @@
 //! ```
 //!
 //! [tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
-//! [`Fuse`]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
+//! [Fuse]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
+//! [Stream]: https://docs.rs/futures/0/futures/stream/trait.Stream.html
+
+#![deny(missing_docs)]
 
 mod poll_fn;
 
