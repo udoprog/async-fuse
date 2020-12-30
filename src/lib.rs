@@ -1,106 +1,53 @@
-//! Extension trait to simplify optionally polling futures.
+//! Helpers for fusing asynchronous computations.
+//!
+//! This is especially useful in combination with optional branches using
+//! [tokio::select], where the future being polled isn't necessarily set.
+//!
+//! A similar structure is provided by futures-rs called [`Fuse`]. This however
+//! lacks some of the flexibility needed to interact with tokio's streaming
+//! types like [Interval] since these no longer implement [Stream].
+//!
+//! # Examples
+//!
+//! > This is available as the `ticker` example:
+//! > ```sh
+//! > cargo run --example ticker
+//! > ```
+//!
+//! ```rust
+//! use std::time::Duration;
+//! use tokio::time;
+//!
+//! # #[tokio::main]
+//! # async fn main() {
+//! let mut interval = async_fuse::poll_fn(
+//!     time::interval(Duration::from_secs(1)),
+//!     time::Interval::poll_tick,
+//! );
+//!
+//! let sleep = async_fuse::once(time::sleep(Duration::from_secs(5)));
+//! tokio::pin!(sleep);
+//!
+//! for _ in 0..20usize {
+//!     tokio::select! {
+//!         when = &mut interval => {
+//!             println!("tick: {:?}", when);
+//!         }
+//!         _ = &mut sleep => {
+//!             interval.set(time::interval(Duration::from_millis(200)));
+//!         }
+//!     }
+//! }
+//! # }
+//! ```
+//!
+//! [tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
+//! [`Fuse`]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
 
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+mod poll_fn;
 
-/// A free-form fuse variant that supports polling with a custom poller
-/// function.
-pub struct Fuse<T> {
-    value: Option<Pin<Box<T>>>,
-}
+pub use self::poll_fn::{poll_fn, PollFn};
 
-impl<T> Fuse<T> {
-    /// Construct a new fused value.
-    pub fn new(value: T) -> Fuse<T> {
-        Self {
-            value: Some(Box::pin(value)),
-        }
-    }
+mod once;
 
-    /// Set the fused value to be something else.
-    ///
-    /// This will cause the old value to be dropped.
-    pub fn set(&mut self, value: T) {
-        self.value = Some(Box::pin(value));
-    }
-
-    /// Clear the fused value.
-    ///
-    /// This will cause the old value to be dropped if present.
-    pub fn clear(&mut self) {
-        self.value = None;
-    }
-
-    /// Test if the value is empty.
-    pub fn is_empty(&self) -> bool {
-        self.value.is_none()
-    }
-
-    /// Try to poll the fused value with the given polling implementation.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use std::time::Duration;
-    /// use std::future::Future;
-    /// use async_fuse::Fuse;
-    /// use tokio::time;
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut sleep = Fuse::new(time::sleep(Duration::from_millis(200)));
-    ///
-    ///     tokio::select! {
-    ///         _ = sleep.poll_fn(time::Sleep::poll) => {
-    ///             sleep.clear();
-    ///         }
-    ///     }
-    ///
-    ///     assert!(sleep.is_empty());
-    /// }
-    /// ```
-    pub fn poll_fn<P, O>(&mut self, poll: P) -> PollFn<'_, T, P, O>
-    where
-        P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
-    {
-        PollFn { fuse: self, poll }
-    }
-}
-
-/// Adapter future to poll a fused value.
-pub struct PollFn<'a, T, P, O>
-where
-    P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
-{
-    fuse: &'a mut Fuse<T>,
-    poll: P,
-}
-
-impl<'a, T, P, O> Future for PollFn<'a, T, P, O>
-where
-    P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
-{
-    type Output = O;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Safety: we're not doing anything with the type to violate pinning
-        // guarantees.
-        //
-        // In particular we're taking care not to:
-        // * Move the fused value (it's only ever being set to `None`).
-        let this = unsafe { Pin::into_inner_unchecked(self) };
-
-        let inner = match &mut this.fuse.value {
-            Some(inner) => inner,
-            None => return Poll::Pending,
-        };
-
-        let value = match (this.poll)(inner.as_mut(), cx) {
-            Poll::Ready(value) => value,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        Poll::Ready(value)
-    }
-}
+pub use self::once::{once, Once};
