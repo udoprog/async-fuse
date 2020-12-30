@@ -1,58 +1,50 @@
-# Option Extensions for Futures
+# async-fuse
 
-[![Build Status](https://travis-ci.org/udoprog/futures-option.svg?branch=master)](https://travis-ci.org/udoprog/futures-option)
+[![Documentation](https://docs.rs/async-fuse/badge.svg)](https://docs.rs/async-fuse)
+[![Crates](https://img.shields.io/crates/v/async-fuse.svg)](https://crates.io/crates/async-fuse)
+[![Actions Status](https://github.com/udoprog/async-fuse/workflows/Rust/badge.svg)](https://github.com/udoprog/async-fuse/actions)
 
-Extension traits for dealing with optional futures and streams.
+Helpers for fusing asynchronous computations.
 
-# Examples
+This is especially useful in combination with optional branches using
+[tokio::select], where the future being polled isn't necessarily set.
 
-```rust
-use futures::{future::{self, FusedFuture as _}};
-use futures_option::OptionExt as _;
+A similar structure is provided by futures-rs called [`Fuse`]. This however
+lacks some of the flexibility needed to interact with tokio's streaming
+types like [Interval] since these no longer implement [Stream].
 
-futures::executor::block_on(async {
-    let mut f = Some(future::ready::<u32>(1));
-    assert!(f.is_some());
-    assert_eq!(f.current().await, 1);
-    assert!(f.is_none());
-    assert!(f.current().is_terminated());
-});
-```
+## Examples
 
-This is useful when you want to implement optional branches using the
-`select!` macro.
+> This is available as the `ticker` example:
+> ```sh
+> cargo run --example ticker
+> ```
 
 ```rust
-#![recursion_limit="128"]
+use std::time::Duration;
+use tokio::time;
 
-use futures::{future, stream, StreamExt as _};
-use futures_option::OptionExt as _;
+let mut interval = async_fuse::poll_fn(
+    time::interval(Duration::from_secs(1)),
+    time::Interval::poll_tick,
+);
 
-futures::executor::block_on(async {
-    let mut value = None;
-    let mut values = Some(stream::iter(vec![1u32, 2u32, 4u32].into_iter()).fuse());
-    let mut parked = None;
+let sleep = async_fuse::once(time::sleep(Duration::from_secs(5)));
+tokio::pin!(sleep);
 
-    let mut sum = 0;
-
-    loop {
-        futures::select! {
-            value = value.current() => {
-                sum += value;
-                std::mem::swap(&mut parked, &mut values);
-            }
-            v = values.next() => {
-                match v {
-                    Some(v) => {
-                        value = Some(future::ready(v));
-                        std::mem::swap(&mut parked, &mut values);
-                    },
-                    None => break,
-                }
-            }
+for _ in 0..20usize {
+    tokio::select! {
+        when = &mut interval => {
+            println!("tick: {:?}", when);
+        }
+        _ = &mut sleep => {
+            interval.set(time::interval(Duration::from_millis(200)));
         }
     }
-
-    assert_eq!(7, sum);
-});
+}
 ```
+
+[tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
+[`Fuse`]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
+
+License: MIT/Apache-2.0
