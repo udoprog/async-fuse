@@ -47,5 +47,6 @@ for _ in 0..20usize {
 [tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
 [Fuse]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
 [Stream]: https://docs.rs/futures/0/futures/stream/trait.Stream.html
+[Interval]: https://docs.rs/tokio/1/tokio/time/struct.Interval.html
 
 License: MIT/Apache-2.0
