@@ -1,19 +1,16 @@
 [package]
-name = "futures-option"
+name = "async-fuse"
 version = "0.2.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/udoprog/futures-option"
-homepage = "https://github.com/udoprog/futures-option"
-documentation = "https://docs.rs/futures-option"
+repository = "https://github.com/udoprog/async-fuse"
+homepage = "https://github.com/udoprog/async-fuse"
+documentation = "https://docs.rs/async-fuse"
 description = """
-Extension traits for dealing with optional futures and streams
+Container to simplify the fusing of futures.
 """
 
-[dependencies]
-futures-core = "0.3.1"
-
 [dev-dependencies]
-futures = {version = "0.3.1" }
+tokio = { version = "1.0.0", features = ["full"] }
