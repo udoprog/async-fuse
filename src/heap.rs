@@ -179,6 +179,14 @@ impl<T> Heap<T> {
     }
 }
 
+impl<T> From<Option<T>> for Heap<T> {
+    fn from(value: Option<T>) -> Self {
+        Heap {
+            value: value.map(Box::pin),
+        }
+    }
+}
+
 impl<T> Default for Heap<T> {
     fn default() -> Self {
         Self { value: None }
