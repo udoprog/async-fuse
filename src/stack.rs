@@ -40,6 +40,32 @@ where
     }
 }
 
+#[cfg(feature = "stream")]
+impl<T> futures_core::Stream for Stack<T>
+where
+    T: futures_core::Stream,
+{
+    type Item = T::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let inner = match self.as_mut().project().value.as_pin_mut() {
+            Some(inner) => inner,
+            None => return Poll::Pending,
+        };
+
+        let value = match inner.poll_next(cx) {
+            Poll::Ready(value) => value,
+            Poll::Pending => return Poll::Pending,
+        };
+
+        if value.is_none() {
+            self.as_mut().project().value.set(None);
+        }
+
+        Poll::Ready(value)
+    }
+}
+
 impl<T> Stack<T> {
     /// Construct a fusing adapter that is capable of polling an interior future.
     ///
@@ -110,6 +136,28 @@ impl<T> Stack<T> {
     /// ```
     pub fn is_empty(&self) -> bool {
         self.value.is_none()
+    }
+
+    /// Access the interior value as a reference.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::time;
+    /// use std::time::Duration;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut sleep = async_fuse::Stack::new(time::sleep(Duration::from_millis(200)));
+    /// tokio::pin!(sleep);
+    ///
+    /// assert!(sleep.as_inner_ref().is_some());
+    /// sleep.set(async_fuse::Stack::empty());
+    /// assert!(sleep.as_inner_ref().is_none());
+    /// # }
+    /// ```
+    pub fn as_inner_ref(&self) -> Option<&T> {
+        self.value.as_ref()
     }
 }
 

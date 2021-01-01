@@ -11,6 +11,11 @@ This is especially useful in combination with optional branches using
 instead of requiring a potentially problematic [branch precondition], the
 future will simply be marked as pending indefinitely.
 
+## Features
+
+* `stream` - Makes `Heap` and `Stack` implement the [`Stream` trait] if
+  they contain a stream.
+
 ## Examples
 
 > This is available as the `ticker` example:
@@ -35,7 +40,8 @@ for _ in 0..20usize {
 }
 ```
 
-[tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
+[`Stream` trait]: https://docs.rs/futures-core/0/futures_core/stream/trait.Stream.html
 [branch precondition]: https://docs.rs/tokio/1.0.1/tokio/macro.select.html#avoid-racy-if-preconditions
+[tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
 
 License: MIT/Apache-2.0

@@ -14,8 +14,12 @@ description = """
 Helpers for fusing asynchronous computations.
 """
 
+[features]
+stream = ["futures-core"]
+
 [dependencies]
 pin-project-lite = "0.2.0"
+futures-core = { version = "0.3.8", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.0.0", features = ["full"] }

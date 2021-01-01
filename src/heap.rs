@@ -88,6 +88,32 @@ where
     }
 }
 
+#[cfg(feature = "stream")]
+impl<T> futures_core::Stream for Heap<T>
+where
+    T: futures_core::Stream,
+{
+    type Item = T::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let inner = match &mut self.value {
+            Some(inner) => inner.as_mut(),
+            None => return Poll::Pending,
+        };
+
+        let value = match inner.poll_next(cx) {
+            Poll::Ready(value) => value,
+            Poll::Pending => return Poll::Pending,
+        };
+
+        if value.is_none() {
+            self.value = None;
+        }
+
+        Poll::Ready(value)
+    }
+}
+
 impl<T> Heap<T> {
     /// Set the fused value.
     ///
