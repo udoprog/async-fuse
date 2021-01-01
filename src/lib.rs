@@ -24,23 +24,13 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() {
-//! let mut interval = async_fuse::poll_fn(
-//!     time::interval(Duration::from_secs(1)),
-//!     time::Interval::poll_tick,
-//! );
-//!
-//! let sleep = async_fuse::once(time::sleep(Duration::from_secs(5)));
+//! let sleep = async_fuse::fuse(time::sleep(Duration::from_millis(100)));
 //! tokio::pin!(sleep);
 //!
 //! for _ in 0..20usize {
-//!     tokio::select! {
-//!         when = &mut interval => {
-//!             println!("tick: {:?}", when);
-//!         }
-//!         _ = &mut sleep => {
-//!             interval.set(time::interval(Duration::from_millis(200)));
-//!         }
-//!     }
+//!     (&mut sleep).await;
+//!     assert!(sleep.is_empty());
+//!     sleep.set(async_fuse::fuse(time::sleep(Duration::from_millis(100))))
 //! }
 //! # }
 //! ```
@@ -52,10 +42,6 @@
 
 #![deny(missing_docs)]
 
-mod poll_fn;
+mod fuse;
 
-pub use self::poll_fn::{poll_fn, PollFn};
-
-mod once;
-
-pub use self::once::{once, Once};
+pub use self::fuse::{empty, fuse, Fuse};

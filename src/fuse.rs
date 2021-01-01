@@ -7,8 +7,8 @@ use std::task::{Context, Poll};
 
 /// Construct a fusing adapter that is capable of polling an interior future.
 ///
-/// Once the future completes, the adapter will switch to an empty state and
-/// return [Poll::Pending] until [set][Once::set] again.
+/// Fuse the future completes, the adapter will switch to an empty state and
+/// return [Poll::Pending] until [set][Fuse::set] again.
 ///
 /// # Examples
 ///
@@ -18,38 +18,57 @@ use std::task::{Context, Poll};
 ///
 /// # #[tokio::main]
 /// # async fn main() {
-/// let mut sleep = async_fuse::once(time::sleep(Duration::from_millis(200)));
+/// let mut sleep = async_fuse::fuse(time::sleep(Duration::from_millis(200)));
 /// tokio::pin!(sleep);
 ///
 /// tokio::select! {
 ///     _ = &mut sleep => {
 ///         assert!(sleep.is_empty());
-///         sleep.set(async_fuse::once(time::sleep(Duration::from_millis(200))));
+///         sleep.set(async_fuse::fuse(time::sleep(Duration::from_millis(200))));
 ///     }
 /// }
 ///
 /// assert!(!sleep.is_empty());
 /// # }
 /// ```
-pub fn once<T>(value: T) -> Once<T>
+pub fn fuse<T>(value: T) -> Fuse<T>
 where
     T: Future,
 {
-    Once { value: Some(value) }
+    Fuse { value: Some(value) }
+}
+
+/// Construct an empty fuse.
+///
+/// # Examples
+///
+/// ```rust
+/// use tokio::time;
+///
+/// # #[tokio::main]
+/// # async fn main() {
+/// let mut sleep = async_fuse::empty::<time::Sleep>();
+/// tokio::pin!(sleep);
+///
+/// assert!(sleep.is_empty());
+/// # }
+/// ```
+pub fn empty<T>() -> Fuse<T> {
+    Fuse { value: None }
 }
 
 pin_project! {
     /// Fusing adapter that is capable of polling an interior value that is
     /// being fused using a custom polling function.
     ///
-    /// See [once] for details.
-    pub struct Once<T> {
+    /// See [fuse] for details.
+    pub struct Fuse<T> {
         #[pin]
         value: Option<T>,
     }
 }
 
-impl<T> Future for Once<T>
+impl<T> Future for Fuse<T>
 where
     T: Future,
 {
@@ -71,10 +90,10 @@ where
     }
 }
 
-impl<T> Once<T> {
+impl<T> Fuse<T> {
     /// Construct an empty value that can never complete.
-    pub fn empty() -> Once<T> {
-        Once { value: None }
+    pub fn empty() -> Fuse<T> {
+        Fuse { value: None }
     }
 
     /// Test if the polled for value is empty.
@@ -87,15 +106,21 @@ impl<T> Once<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::once(time::sleep(Duration::from_millis(200)));
+    /// let mut sleep = async_fuse::fuse(time::sleep(Duration::from_millis(200)));
     /// tokio::pin!(sleep);
     ///
     /// assert!(!sleep.is_empty());
-    /// sleep.set(async_fuse::Once::empty());
+    /// sleep.set(async_fuse::Fuse::empty());
     /// assert!(sleep.is_empty());
     /// # }
     /// ```
     pub fn is_empty(&self) -> bool {
         self.value.is_none()
+    }
+}
+
+impl<T> Default for Fuse<T> {
+    fn default() -> Self {
+        Self { value: None }
     }
 }
