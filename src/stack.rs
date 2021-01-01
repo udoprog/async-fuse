@@ -161,42 +161,6 @@ impl<T> Stack<T> {
         self.value.as_ref()
     }
 
-    /// Convert into its inner mutable value.
-    pub fn as_inner_mut(&mut self) -> Option<&mut T>
-    where
-        Self: Unpin,
-    {
-        self.value.as_mut()
-    }
-
-    /// Helper conversion to a pinned value.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use tokio::sync::mpsc;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// let (tx, rx) = mpsc::unbounded_channel::<u32>();
-    /// let mut rx = async_fuse::Stack::new(rx);
-    ///
-    /// tx.send(42);
-    ///
-    /// // Manually poll the sleep.
-    /// assert_eq!(rx.as_pin_mut().poll_stream(|mut i, cx| i.poll_recv(cx)).await, Some(42));
-    ///
-    /// rx = async_fuse::Stack::empty();
-    /// assert!(rx.is_empty());
-    /// # }
-    /// ```
-    pub fn as_pin_mut(&mut self) -> Pin<&mut Self>
-    where
-        Self: Unpin,
-    {
-        Pin::new(self)
-    }
-
     /// Poll the current value with the given polling implementation.
     ///
     /// This can be used for types which only provides a polling function.
@@ -313,6 +277,51 @@ impl<T> Stack<T> {
     {
         StackPollStream { stack: self, poll }.await
     }
+}
+
+impl<T> Stack<T>
+where
+    T: Unpin,
+{
+    /// Access the interior mutable value. This is only available if it
+    /// implements [Unpin].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// let mut rx = async_fuse::Stack::new(Box::pin(async { 42 }));
+    ///
+    /// assert!(rx.as_inner_mut().is_some());
+    /// # }
+    pub fn as_inner_mut(&mut self) -> Option<&mut T> {
+        self.value.as_mut()
+    }
+
+    /// Helper conversion to a pinned value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::sync::mpsc;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let (tx, rx) = mpsc::unbounded_channel::<u32>();
+    /// let mut rx = async_fuse::Stack::new(rx);
+    ///
+    /// tx.send(42);
+    ///
+    /// // Manually poll the sleep.
+    /// assert_eq!(rx.as_pin_mut().poll_stream(|mut i, cx| i.poll_recv(cx)).await, Some(42));
+    ///
+    /// rx = async_fuse::Stack::empty();
+    /// assert!(rx.is_empty());
+    /// # }
+    /// ```
+    pub fn as_pin_mut(&mut self) -> Pin<&mut Self> {
+        Pin::new(self)
+    }
 
     /// Poll the next value in the stream where the underlying value is unpin.
     ///
@@ -350,7 +359,6 @@ impl<T> Stack<T> {
     pub async fn next(&mut self) -> Option<T::Item>
     where
         T: futures_core::Stream,
-        Self: Unpin,
     {
         self.as_pin_mut()
             .poll_stream(futures_core::Stream::poll_next)
