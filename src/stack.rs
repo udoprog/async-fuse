@@ -312,6 +312,48 @@ impl<T> Stack<T> {
     {
         StackPollStream { stack: self, poll }.await
     }
+
+    /// Poll the next value in the stream where the underlying value is unpin.
+    ///
+    /// Behaves the same as [poll_stream], except that it only works for values
+    /// which are [Unpin].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::sync::mpsc;
+    /// use std::future::Future;
+    /// use futures_core::Stream;
+    ///
+    /// fn op(n: u32) -> impl Stream<Item = u32> {
+    ///     async_stream::stream! {
+    ///         yield n;
+    ///         yield n + 1;
+    ///     }
+    /// }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut stream = async_fuse::Stack::new(Box::pin(op(1)));
+    /// assert!(!stream.is_empty());
+    ///
+    /// assert_eq!(stream.next().await, Some(1));
+    /// assert_eq!(stream.next().await, Some(2));
+    /// assert_eq!(stream.next().await, None);
+    ///
+    /// assert!(stream.is_empty());
+    /// # }
+    /// ```
+    #[cfg(feature = "stream")]
+    pub async fn next(&mut self) -> Option<T::Item>
+    where
+        T: futures_core::Stream,
+        Self: Unpin,
+    {
+        self.as_pin_mut()
+            .poll_stream(futures_core::Stream::poll_next)
+            .await
+    }
 }
 
 impl<T> From<Option<T>> for Stack<T> {
