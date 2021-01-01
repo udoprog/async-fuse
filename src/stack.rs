@@ -41,6 +41,7 @@ where
 }
 
 #[cfg(feature = "stream")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
 impl<T> futures_core::Stream for Stack<T>
 where
     T: futures_core::Stream,
@@ -345,6 +346,7 @@ impl<T> Stack<T> {
     /// # }
     /// ```
     #[cfg(feature = "stream")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
     pub async fn next(&mut self) -> Option<T::Item>
     where
         T: futures_core::Stream,

@@ -89,6 +89,7 @@ where
 }
 
 #[cfg(feature = "stream")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
 impl<T> futures_core::Stream for Heap<T>
 where
     T: futures_core::Stream,
