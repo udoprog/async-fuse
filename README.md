@@ -7,11 +7,9 @@
 Helpers for fusing asynchronous computations.
 
 This is especially useful in combination with optional branches using
-[tokio::select], where the future being polled isn't necessarily set.
-
-A similar structure is provided by futures-rs called [Fuse]. This however
-lacks some of the flexibility needed to interact with tokio's streaming
-types like [Interval] since these no longer implement [Stream].
+[tokio::select], where the future being polled isn't necessarily set. So
+instead of requiring a potentially problematic [branch precondition], the
+future will simply be marked as pending indefinitely.
 
 ## Examples
 
@@ -24,29 +22,20 @@ types like [Interval] since these no longer implement [Stream].
 use std::time::Duration;
 use tokio::time;
 
-let mut interval = async_fuse::poll_fn(
-    time::interval(Duration::from_secs(1)),
-    time::Interval::poll_tick,
-);
-
-let sleep = async_fuse::once(time::sleep(Duration::from_secs(5)));
+let sleep = async_fuse::Stack::new(time::sleep(Duration::from_millis(100)));
 tokio::pin!(sleep);
 
 for _ in 0..20usize {
-    tokio::select! {
-        when = &mut interval => {
-            println!("tick: {:?}", when);
-        }
-        _ = &mut sleep => {
-            interval.set(time::interval(Duration::from_millis(200)));
-        }
-    }
+    (&mut sleep).await;
+    assert!(sleep.is_empty());
+
+    println!("tick");
+
+    sleep.set(async_fuse::Stack::new(time::sleep(Duration::from_millis(100))))
 }
 ```
 
 [tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
-[Fuse]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
-[Stream]: https://docs.rs/futures/0/futures/stream/trait.Stream.html
-[Interval]: https://docs.rs/tokio/1/tokio/time/struct.Interval.html
+[branch precondition]: https://docs.rs/tokio/1.0.1/tokio/macro.select.html#avoid-racy-if-preconditions
 
 License: MIT/Apache-2.0
