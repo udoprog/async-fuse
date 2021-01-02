@@ -7,17 +7,17 @@ use std::task::{Context, Poll};
 
 /// A fusing adapter that stores a pinned value on the heap.
 ///
+/// For most operations except [poll_inner], if the value completes, the
+/// adapter will switch to an empty state and return [Poll::Pending] until
+/// [set][Heap::set] again.
+///
 /// See [Heap::new] for more details.
-pub struct Heap<T> {
-    value: Pin<Box<Option<T>>>,
+pub struct Heap<T: ?Sized> {
+    value: Option<Pin<Box<T>>>,
 }
 
 impl<T> Heap<T> {
     /// Construct a fusing adapter that stores a pinned value on the heap.
-    ///
-    /// For most operations except [poll_inner], if the value completes, the
-    /// adapter will switch to an empty state and return [Poll::Pending] until
-    /// [set][Heap::set] again.
     ///
     /// # Examples
     ///
@@ -41,79 +41,10 @@ impl<T> Heap<T> {
     /// ```
     pub fn new(value: T) -> Self {
         Heap {
-            value: Box::pin(Some(value)),
+            value: Some(Box::pin(value)),
         }
     }
 
-    /// Construct an empty heap fuse.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use tokio::time;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// let mut sleep = async_fuse::Heap::<time::Sleep>::empty();
-    ///
-    /// assert!(sleep.is_empty());
-    /// # }
-    /// ```
-    pub fn empty() -> Self {
-        Self::default()
-    }
-}
-
-impl<T> Future for Heap<T>
-where
-    T: Future,
-{
-    type Output = T::Output;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let inner = match self.value.as_mut().as_pin_mut() {
-            Some(inner) => inner,
-            None => return Poll::Pending,
-        };
-
-        let value = match inner.poll(cx) {
-            Poll::Ready(value) => value,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        self.value.set(None);
-        Poll::Ready(value)
-    }
-}
-
-#[cfg(feature = "stream")]
-#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-impl<T> futures_core::Stream for Heap<T>
-where
-    T: futures_core::Stream,
-{
-    type Item = T::Item;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let inner = match self.value.as_mut().as_pin_mut() {
-            Some(inner) => inner,
-            None => return Poll::Pending,
-        };
-
-        let value = match inner.poll_next(cx) {
-            Poll::Ready(value) => value,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        if value.is_none() {
-            self.value.set(None);
-        }
-
-        Poll::Ready(value)
-    }
-}
-
-impl<T> Heap<T> {
     /// Set the fused value.
     ///
     /// # Examples
@@ -132,7 +63,91 @@ impl<T> Heap<T> {
     /// # }
     /// ```
     pub fn set(&mut self, value: T) {
-        self.value.set(Some(value));
+        self.value = Some(Box::pin(value));
+    }
+}
+
+impl<T: ?Sized> Heap<T> {
+    /// Construct a fusing adapter that stores a pinned value on the heap. This
+    /// variant of the constructor takes unsized types by first insisting that
+    /// they go through a `Box<T>`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::future::Future;
+    /// use tokio::time;
+    ///
+    /// async fn foo() -> u32 { 1 }
+    /// async fn bar() -> u32 { 2 }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut fut = async_fuse::Heap::<dyn Future<Output = u32>>::new_unsized(Box::new(foo()));
+    /// let mut total = 0;
+    ///
+    /// while !fut.is_empty() {
+    ///     let value = (&mut fut).await;
+    ///
+    ///     if value == 1 {
+    ///         fut.set_unsized(Box::new(bar()));
+    ///     }
+    ///
+    ///     total += value;
+    /// }
+    ///
+    /// assert_eq!(total, 3);
+    /// # }
+    /// ```
+    pub fn new_unsized(value: Box<T>) -> Self {
+        Heap {
+            value: Some(value.into()),
+        }
+    }
+
+    /// Set the value from a box.
+    ///
+    /// This allows for setting unsized types, such as trait objects.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::future::Future;
+    /// use tokio::time;
+    ///
+    /// async fn foo() -> u32 { 1 }
+    /// async fn bar() -> u32 { 2 }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut fut = async_fuse::Heap::<dyn Future<Output = u32>>::empty();
+    /// assert!(fut.is_empty());
+    /// fut.set_unsized(Box::new(foo()));
+    /// assert!(!fut.is_empty());
+    /// fut.set_unsized(Box::new(bar()));
+    /// assert!(!fut.is_empty());
+    /// # }
+    /// ```
+    pub fn set_unsized(&mut self, value: Box<T>) {
+        self.value = Some(value.into());
+    }
+
+    /// Construct an empty heap fuse.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::time;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut sleep = async_fuse::Heap::<time::Sleep>::empty();
+    ///
+    /// assert!(sleep.is_empty());
+    /// # }
+    /// ```
+    pub fn empty() -> Self {
+        Self::default()
     }
 
     /// Clear the fused value.
@@ -153,7 +168,7 @@ impl<T> Heap<T> {
     /// # }
     /// ```
     pub fn clear(&mut self) {
-        self.value.set(None);
+        self.value = None;
     }
 
     /// Test if the polled for value is empty.
@@ -333,28 +348,98 @@ impl<T> Heap<T> {
     }
 }
 
+impl<T> Future for Heap<T>
+where
+    T: ?Sized + Future,
+{
+    type Output = T::Output;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let inner = match &mut self.value {
+            Some(inner) => inner.as_mut(),
+            None => return Poll::Pending,
+        };
+
+        let value = match inner.poll(cx) {
+            Poll::Ready(value) => value,
+            Poll::Pending => return Poll::Pending,
+        };
+
+        self.value = None;
+        Poll::Ready(value)
+    }
+}
+
+#[cfg(feature = "stream")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+impl<T> futures_core::Stream for Heap<T>
+where
+    T: futures_core::Stream,
+{
+    type Item = T::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let inner = match &mut self.value {
+            Some(inner) => inner.as_mut(),
+            None => return Poll::Pending,
+        };
+
+        let value = match inner.poll_next(cx) {
+            Poll::Ready(value) => value,
+            Poll::Pending => return Poll::Pending,
+        };
+
+        if value.is_none() {
+            self.value = None;
+        }
+
+        Poll::Ready(value)
+    }
+}
+
 impl<T> From<Option<T>> for Heap<T> {
     fn from(value: Option<T>) -> Self {
         Heap {
-            value: Box::pin(value),
+            value: value.map(Box::pin),
         }
     }
 }
 
-impl<T> Default for Heap<T> {
+impl<T> From<Box<T>> for Heap<T> {
+    fn from(value: Box<T>) -> Self {
+        Heap {
+            value: Some(value.into()),
+        }
+    }
+}
+
+impl<T> From<Option<Box<T>>> for Heap<T> {
+    fn from(value: Option<Box<T>>) -> Self {
+        Heap {
+            value: value.map(Into::into),
+        }
+    }
+}
+
+impl<T: ?Sized> Default for Heap<T> {
     fn default() -> Self {
-        Self {
-            value: Box::pin(None),
-        }
+        Self { value: None }
     }
 }
 
-struct ProjectHeap<'a, T>(&'a mut Heap<T>);
+struct ProjectHeap<'a, T: ?Sized>(&'a mut Heap<T>);
 
-impl<'a, T> poll::Project for ProjectHeap<'a, T> {
+impl<'a, T: ?Sized> poll::Project for ProjectHeap<'a, T> {
     type Value = T;
 
-    fn project(&mut self) -> Pin<&mut Option<Self::Value>> {
-        self.0.value.as_mut()
+    fn clear(&mut self) {
+        self.0.value = None;
+    }
+
+    fn project(&mut self) -> Option<Pin<&mut Self::Value>> {
+        match &mut self.0.value {
+            Some(value) => Some(value.as_mut()),
+            None => None,
+        }
     }
 }

@@ -9,6 +9,10 @@ use std::task::{Context, Poll};
 pin_project! {
     /// A fusing adapter that might need to be pinned.
     ///
+    /// For most operations except [poll_inner], if the value completes, the
+    /// adapter will switch to an empty state and return [Poll::Pending] until
+    /// set again.
+    ///
     /// See [Stack::new] for more details.
     pub struct Stack<T> {
         #[pin]
@@ -18,10 +22,6 @@ pin_project! {
 
 impl<T> Stack<T> {
     /// Construct a fusing adapter that might need to be pinned.
-    ///
-    /// For most operations except [poll_inner], if the value completes, the
-    /// adapter will switch to an empty state and return [Poll::Pending] until
-    /// set again.
     ///
     /// # Examples
     ///
@@ -384,7 +384,11 @@ struct ProjectStack<'a, T>(Pin<&'a mut Stack<T>>);
 impl<'a, T> poll::Project for ProjectStack<'a, T> {
     type Value = T;
 
-    fn project(&mut self) -> Pin<&mut Option<Self::Value>> {
-        self.0.as_mut().project().value
+    fn clear(&mut self) {
+        self.0.as_mut().project().value.set(None);
+    }
+
+    fn project(&mut self) -> Option<Pin<&mut Self::Value>> {
+        self.0.as_mut().project().value.as_pin_mut()
     }
 }

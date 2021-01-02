@@ -6,9 +6,13 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 pub(crate) trait Project {
-    type Value;
+    type Value: ?Sized;
 
-    fn project(&mut self) -> Pin<&mut Option<Self::Value>>;
+    /// Clear the projected to value.
+    fn clear(&mut self);
+
+    /// Project the value.
+    fn project(&mut self) -> Option<Pin<&mut Self::Value>>;
 }
 
 pin_project! {
@@ -39,7 +43,7 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
 
-        let value = match this.stack.project().as_pin_mut() {
+        let value = match this.stack.project() {
             Some(value) => value,
             None => return Poll::Pending,
         };
@@ -49,7 +53,7 @@ where
             Poll::Pending => return Poll::Pending,
         };
 
-        this.stack.project().set(None);
+        this.stack.clear();
         Poll::Ready(output)
     }
 }
@@ -82,7 +86,7 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
 
-        let value = match this.stack.project().as_pin_mut() {
+        let value = match this.stack.project() {
             Some(value) => value,
             None => return Poll::Pending,
         };
@@ -124,7 +128,7 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
 
-        let value = match this.stack.project().as_pin_mut() {
+        let value = match this.stack.project() {
             Some(value) => value,
             None => return Poll::Pending,
         };
@@ -135,7 +139,7 @@ where
         };
 
         if output.is_none() {
-            this.stack.project().set(None);
+            this.stack.clear();
         }
 
         Poll::Ready(output)
