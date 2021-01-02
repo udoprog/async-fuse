@@ -44,8 +44,108 @@ impl<T> Stack<T> {
     /// assert!(!sleep.is_empty());
     /// # }
     /// ```
+    ///
+    /// # Example using an unsized trait object
+    ///
+    /// ```rust
+    /// use std::future::Future;
+    /// use tokio::time;
+    /// use std::pin::Pin;
+    ///
+    /// async fn foo() -> u32 { 1 }
+    /// async fn bar() -> u32 { 2 }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut fut = async_fuse::Stack::<Pin<Box<dyn Future<Output = u32>>>>::new(Box::pin(foo()));
+    /// let mut total = 0;
+    ///
+    /// while !fut.is_empty() {
+    ///     let value = (&mut fut).await;
+    ///
+    ///     if value == 1 {
+    ///         fut.set(Box::pin(bar()));
+    ///     }
+    ///
+    ///     total += value;
+    /// }
+    ///
+    /// assert_eq!(total, 3);
+    /// # }
+    /// ```
     pub fn new(value: T) -> Self {
         Self { value: Some(value) }
+    }
+
+    /// Set the fused value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::time;
+    /// use std::time::Duration;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut sleep = async_fuse::Stack::new(Box::pin(time::sleep(Duration::from_millis(200))));
+    ///
+    /// assert!(!sleep.is_empty());
+    /// sleep.set(Box::pin(time::sleep(Duration::from_millis(200))));
+    /// assert!(!sleep.is_empty());
+    /// # }
+    /// ```
+    ///
+    /// # Example setting an unsized trait object
+    ///
+    /// ```rust
+    /// use std::future::Future;
+    /// use tokio::time;
+    /// use std::pin::Pin;
+    ///
+    /// async fn foo() -> u32 { 1 }
+    /// async fn bar() -> u32 { 2 }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut fut = async_fuse::Stack::<Pin<Box<dyn Future<Output = u32>>>>::empty();
+    /// assert!(fut.is_empty());
+    ///
+    /// fut.set(Box::pin(foo()));
+    /// assert!(!fut.is_empty());
+    ///
+    /// fut.set(Box::pin(bar()));
+    /// assert!(!fut.is_empty());
+    /// # }
+    /// ```
+    pub fn set(&mut self, value: T)
+    where
+        Self: Unpin,
+    {
+        self.value = Some(value);
+    }
+
+    /// Clear the fused value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::time;
+    /// use std::time::Duration;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut sleep = async_fuse::Stack::new(Box::pin(time::sleep(Duration::from_millis(200))));
+    ///
+    /// assert!(!sleep.is_empty());
+    /// sleep.clear();
+    /// assert!(sleep.is_empty());
+    /// # }
+    /// ```
+    pub fn clear(&mut self)
+    where
+        Self: Unpin,
+    {
+        self.value = None;
     }
 
     /// Construct an empty fuse.
