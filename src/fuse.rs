@@ -7,21 +7,52 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 pin_project! {
-    /// A fusing adapter that might need to be pinned.
+    /// A fusing adapter around a value.
     ///
-    /// For most operations except [poll_inner], if the value completes, the
-    /// adapter will switch to an empty state and return [Poll::Pending] until
-    /// set again.
+    /// A `Fuse<T>` is similar to `Option<T>`, with the exception that it
+    /// provides and API which is more suitable for interacting with
+    /// asynchronous tasks.
     ///
-    /// See [Stack::new] for more details.
-    pub struct Stack<T> {
+    /// For most polling operations except [poll_inner], if the value completes,
+    /// the adapter will switch to an empty state and return [Poll::Pending]
+    /// until updated again with [set][Fuse::set].
+    ///
+    /// See [Fuse::new] for more details.
+    pub struct Fuse<T> {
         #[pin]
         value: Option<T>,
     }
 }
 
-impl<T> Stack<T> {
-    /// Construct a fusing adapter that might need to be pinned.
+impl<T> Fuse<Pin<Box<T>>> {
+    /// Construct a fusing adapter around a value that is already pinned.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::future::Future;
+    /// use tokio::time;
+    ///
+    /// async fn foo() -> u32 { 1 }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut fut = async_fuse::Fuse::pin(foo());
+    /// assert!(!fut.is_empty());
+    ///
+    /// let value = (&mut fut).await;
+    /// assert!(fut.is_empty());
+    /// # }
+    /// ```
+    pub fn pin(value: T) -> Self {
+        Self {
+            value: Some(Box::pin(value)),
+        }
+    }
+}
+
+impl<T> Fuse<T> {
+    /// Construct a fusing adapter around a value.
     ///
     /// # Examples
     ///
@@ -31,13 +62,13 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Stack::new(time::sleep(Duration::from_millis(200)));
+    /// let mut sleep = async_fuse::Fuse::new(time::sleep(Duration::from_millis(200)));
     /// tokio::pin!(sleep);
     ///
     /// tokio::select! {
     ///     _ = &mut sleep => {
     ///         assert!(sleep.is_empty());
-    ///         sleep.set(async_fuse::Stack::new(time::sleep(Duration::from_millis(200))));
+    ///         sleep.set(async_fuse::Fuse::new(time::sleep(Duration::from_millis(200))));
     ///     }
     /// }
     ///
@@ -57,7 +88,7 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut fut = async_fuse::Stack::<Pin<Box<dyn Future<Output = u32>>>>::new(Box::pin(foo()));
+    /// let mut fut = async_fuse::Fuse::<Pin<Box<dyn Future<Output = u32>>>>::new(Box::pin(foo()));
     /// let mut total = 0;
     ///
     /// while !fut.is_empty() {
@@ -87,7 +118,7 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Stack::new(Box::pin(time::sleep(Duration::from_millis(200))));
+    /// let mut sleep = async_fuse::Fuse::new(Box::pin(time::sleep(Duration::from_millis(200))));
     ///
     /// assert!(!sleep.is_empty());
     /// sleep.set(Box::pin(time::sleep(Duration::from_millis(200))));
@@ -107,7 +138,7 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut fut = async_fuse::Stack::<Pin<Box<dyn Future<Output = u32>>>>::empty();
+    /// let mut fut = async_fuse::Fuse::<Pin<Box<dyn Future<Output = u32>>>>::empty();
     /// assert!(fut.is_empty());
     ///
     /// fut.set(Box::pin(foo()));
@@ -134,7 +165,7 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Stack::new(Box::pin(time::sleep(Duration::from_millis(200))));
+    /// let mut sleep = async_fuse::Fuse::new(Box::pin(time::sleep(Duration::from_millis(200))));
     ///
     /// assert!(!sleep.is_empty());
     /// sleep.clear();
@@ -157,14 +188,14 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Stack::<time::Sleep>::empty();
+    /// let mut sleep = async_fuse::Fuse::<time::Sleep>::empty();
     /// tokio::pin!(sleep);
     ///
     /// assert!(sleep.is_empty());
     /// # }
     /// ```
     pub fn empty() -> Self {
-        Stack::default()
+        Fuse::default()
     }
 
     /// Test if the polled for value is empty.
@@ -177,11 +208,11 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Stack::new(time::sleep(Duration::from_millis(200)));
+    /// let mut sleep = async_fuse::Fuse::new(time::sleep(Duration::from_millis(200)));
     /// tokio::pin!(sleep);
     ///
     /// assert!(!sleep.is_empty());
-    /// sleep.set(async_fuse::Stack::empty());
+    /// sleep.set(async_fuse::Fuse::empty());
     /// assert!(sleep.is_empty());
     /// # }
     /// ```
@@ -199,11 +230,11 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Stack::new(time::sleep(Duration::from_millis(200)));
+    /// let mut sleep = async_fuse::Fuse::new(time::sleep(Duration::from_millis(200)));
     /// tokio::pin!(sleep);
     ///
     /// assert!(sleep.as_inner_ref().is_some());
-    /// sleep.set(async_fuse::Stack::empty());
+    /// sleep.set(async_fuse::Fuse::empty());
     /// assert!(sleep.as_inner_ref().is_none());
     /// # }
     /// ```
@@ -229,13 +260,13 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = async_fuse::Stack::new(op(1));
+    /// let op1 = async_fuse::Fuse::new(op(1));
     /// tokio::pin!(op1);
     ///
     /// assert_eq!(op1.as_mut().poll_inner(|mut i, cx| i.poll(cx)).await, 1);
     /// assert!(!op1.is_empty());
     ///
-    /// op1.set(async_fuse::Stack::new(op(2)));
+    /// op1.set(async_fuse::Fuse::new(op(2)));
     /// assert_eq!(op1.as_mut().poll_inner(|mut i, cx| i.poll(cx)).await, 2);
     /// assert!(!op1.is_empty());
     /// # }
@@ -244,7 +275,7 @@ impl<T> Stack<T> {
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
     {
-        poll::PollInner::new(ProjectStack(self), poll).await
+        poll::PollInner::new(Project(self), poll).await
     }
 
     /// Poll the current value with the given polling implementation.
@@ -266,13 +297,13 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = async_fuse::Stack::new(op(1));
+    /// let op1 = async_fuse::Fuse::new(op(1));
     /// tokio::pin!(op1);
     ///
     /// assert_eq!(op1.as_mut().poll_future(|mut i, cx| i.poll(cx)).await, 1);
     /// assert!(op1.is_empty());
     ///
-    /// op1.set(async_fuse::Stack::new(op(2)));
+    /// op1.set(async_fuse::Fuse::new(op(2)));
     /// assert!(!op1.is_empty());
     /// assert_eq!(op1.as_mut().poll_future(|mut i, cx| i.poll(cx)).await, 2);
     /// assert!(op1.is_empty());
@@ -282,7 +313,7 @@ impl<T> Stack<T> {
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
     {
-        poll::PollFuture::new(ProjectStack(self), poll).await
+        poll::PollFuture::new(Project(self), poll).await
     }
 
     /// Poll the current value with the given polling implementation.
@@ -310,7 +341,7 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = async_fuse::Stack::new(op(1));
+    /// let op1 = async_fuse::Fuse::new(op(1));
     /// tokio::pin!(op1);
     ///
     /// assert!(!op1.is_empty());
@@ -325,7 +356,7 @@ impl<T> Stack<T> {
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<Option<O>>,
     {
-        poll::PollStream::new(ProjectStack(self), poll).await
+        poll::PollStream::new(Project(self), poll).await
     }
 
     /// Access the interior mutable value. This is only available if it
@@ -335,7 +366,7 @@ impl<T> Stack<T> {
     ///
     /// ```rust
     /// # fn main() {
-    /// let mut rx = async_fuse::Stack::new(Box::pin(async { 42 }));
+    /// let mut rx = async_fuse::Fuse::new(Box::pin(async { 42 }));
     ///
     /// assert!(rx.as_inner_mut().is_some());
     /// # }
@@ -356,14 +387,14 @@ impl<T> Stack<T> {
     /// # #[tokio::main]
     /// # async fn main() {
     /// let (tx, rx) = mpsc::unbounded_channel::<u32>();
-    /// let mut rx = async_fuse::Stack::new(rx);
+    /// let mut rx = async_fuse::Fuse::new(rx);
     ///
     /// tx.send(42);
     ///
     /// // Manually poll the sleep.
     /// assert_eq!(rx.as_pin_mut().poll_stream(|mut i, cx| i.poll_recv(cx)).await, Some(42));
     ///
-    /// rx = async_fuse::Stack::empty();
+    /// rx = async_fuse::Fuse::empty();
     /// assert!(rx.is_empty());
     /// # }
     /// ```
@@ -395,7 +426,7 @@ impl<T> Stack<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut stream = async_fuse::Stack::new(Box::pin(op(1)));
+    /// let mut stream = async_fuse::Fuse::new(Box::pin(op(1)));
     /// assert!(!stream.is_empty());
     ///
     /// assert_eq!(stream.next().await, Some(1));
@@ -418,7 +449,7 @@ impl<T> Stack<T> {
     }
 }
 
-impl<T> Future for Stack<T>
+impl<T> Future for Fuse<T>
 where
     T: Future,
 {
@@ -442,7 +473,7 @@ where
 
 #[cfg(feature = "stream")]
 #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-impl<T> futures_core::Stream for Stack<T>
+impl<T> futures_core::Stream for Fuse<T>
 where
     T: futures_core::Stream,
 {
@@ -467,21 +498,37 @@ where
     }
 }
 
-impl<T> From<Option<T>> for Stack<T> {
+impl<T> From<Option<T>> for Fuse<T> {
     fn from(value: Option<T>) -> Self {
         Self { value }
     }
 }
 
-impl<T> Default for Stack<T> {
+impl<T> From<Box<T>> for Fuse<Pin<Box<T>>> {
+    fn from(value: Box<T>) -> Self {
+        Self {
+            value: Some(value.into()),
+        }
+    }
+}
+
+impl<T> From<Option<Box<T>>> for Fuse<Pin<Box<T>>> {
+    fn from(value: Option<Box<T>>) -> Self {
+        Self {
+            value: value.map(Into::into),
+        }
+    }
+}
+
+impl<T> Default for Fuse<T> {
     fn default() -> Self {
         Self { value: None }
     }
 }
 
-struct ProjectStack<'a, T>(Pin<&'a mut Stack<T>>);
+struct Project<'a, T>(Pin<&'a mut Fuse<T>>);
 
-impl<'a, T> poll::Project for ProjectStack<'a, T> {
+impl<'a, T> poll::Project for Project<'a, T> {
     type Value = T;
 
     fn clear(&mut self) {

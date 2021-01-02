@@ -22,8 +22,8 @@ pending indefinitely and behave accordingly when polled.
 
 ## Features
 
-* `stream` - Makes [Heap] and [Stack] implement the [Stream] trait if they
-  contain one.
+* `stream` - Makes the [Fuse] implement the [Stream] trait if it contains a
+  stream.
 
 ## Examples
 
@@ -38,17 +38,17 @@ use tokio::time;
 
 let mut duration = Duration::from_millis(500);
 
-let sleep = async_fuse::Stack::new(time::sleep(duration));
+let sleep = async_fuse::Fuse::new(time::sleep(duration));
 tokio::pin!(sleep);
 
-let update_duration = async_fuse::Stack::new(time::sleep(Duration::from_secs(2)));
+let update_duration = async_fuse::Fuse::new(time::sleep(Duration::from_secs(2)));
 tokio::pin!(update_duration);
 
 for _ in 0..10usize {
     tokio::select! {
         _ = &mut sleep => {
             println!("Tick");
-            sleep.set(async_fuse::Stack::new(time::sleep(duration)));
+            sleep.set(async_fuse::Fuse::new(time::sleep(duration)));
         }
         _ = &mut update_duration => {
             println!("Tick faster!");
@@ -59,10 +59,10 @@ for _ in 0..10usize {
 ```
 
 For some types it might be easier to fuse the value on the heap. To make
-this easier, we provide the [Heap] type.
+this easier, we provide the [Fuse::pin] constructor which provides a fused
+value which is pinned on the heap.
 
-As a result, the above example looks pretty similar.
-
+As a result, it looks pretty similar to the above example.
 
 > This is available as the `heap_ticker` example:
 > ```sh
@@ -75,14 +75,14 @@ use tokio::time;
 
 let mut duration = Duration::from_millis(500);
 
-let mut sleep = async_fuse::Heap::new(time::sleep(duration));
-let mut update_duration = async_fuse::Heap::new(time::sleep(Duration::from_secs(2)));
+let mut sleep = async_fuse::Fuse::pin(time::sleep(duration));
+let mut update_duration = async_fuse::Fuse::pin(time::sleep(Duration::from_secs(2)));
 
 for _ in 0..10usize {
     tokio::select! {
         _ = &mut sleep => {
             println!("Tick");
-            sleep.set(time::sleep(duration));
+            sleep.set(Box::pin(time::sleep(duration)));
         }
         _ = &mut update_duration => {
             println!("Tick faster!");
@@ -97,8 +97,7 @@ for _ in 0..10usize {
 [FusedStream]: https://docs.rs/futures/0/futures/stream/trait.FusedStream.html
 [Poll::Pending]: https://doc.rust-lang.org/std/task/enum.Poll.html#variant.Pending
 [Stream]: https://docs.rs/futures-core/0/futures_core/stream/trait.Stream.html
-[Heap]: https://docs.rs/async-fuse/0/async_fuse/struct.Heap.html
-[Stack]: https://docs.rs/async-fuse/0/async_fuse/struct.Stack.html
+[Fuse]: https://docs.rs/async-fuse/0/async_fuse/struct.Fuse.html
 [branch precondition]: https://docs.rs/tokio/1.0.1/tokio/macro.select.html#avoid-racy-if-preconditions
 [tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
 
