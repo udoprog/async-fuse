@@ -7,22 +7,19 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pin_project_lite::pin_project! {
-    /// A fusing adapter around a value.
-    ///
-    /// A `Fuse<T>` is similar to `Option<T>`, with the exception that it
-    /// provides and API which is more suitable for interacting with
-    /// asynchronous tasks.
-    ///
-    /// For most polling operations except [poll_inner], if the value completes,
-    /// the adapter will switch to an empty state and return [Poll::Pending]
-    /// until updated again with [set][Fuse::set].
-    ///
-    /// See [Fuse::new] for more details.
-    pub struct Fuse<T> {
-        #[pin]
-        value: Option<T>,
-    }
+/// A fusing adapter around a value.
+///
+/// A `Fuse<T>` is similar to `Option<T>`, with the exception that it
+/// provides and API which is more suitable for interacting with
+/// asynchronous tasks.
+///
+/// For most polling operations except [poll_inner], if the value completes,
+/// the adapter will switch to an empty state and return [Poll::Pending]
+/// until updated again with [set][Fuse::set].
+///
+/// See [Fuse::new] for more details.
+pub struct Fuse<T> {
+    value: Option<T>,
 }
 
 impl<T> Fuse<Pin<Box<T>>> {
@@ -460,6 +457,12 @@ impl<T> Fuse<T> {
     {
         self.as_pin_mut().poll_stream(Stream::poll_next).await
     }
+
+    fn project(self: Pin<&mut Self>) -> Pin<&mut Option<T>> {
+        // Safety: We're projecting into the owned pinned value field, which we
+        // otherwise do not move before it's dropped.
+        unsafe { Pin::map_unchecked_mut(self, |this| &mut this.value) }
+    }
 }
 
 impl<T> Future for Fuse<T>
@@ -520,10 +523,10 @@ impl<T> poll::Project for Project<'_, T> {
     type Value = T;
 
     fn clear(&mut self) {
-        self.0.as_mut().project().value.set(None);
+        self.0.as_mut().project().set(None);
     }
 
     fn project(&mut self) -> Option<Pin<&mut Self::Value>> {
-        self.0.as_mut().project().value.as_pin_mut()
+        self.0.as_mut().project().as_pin_mut()
     }
 }
