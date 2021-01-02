@@ -10,10 +10,10 @@ A fused operation has a well-defined behavior once the operation has
 completed. In this library, it means that a fused operation that has
 completed will *block forever* by returning [Poll::Pending].
 
-This is similar to the [Fuse] type provided in futures-rs, but provides more
-utility allowing it to interact with types which does not implement
-[FusedFuture] or [FusedStream] as is now the case with all core Tokio types
-since 1.0.
+This is similar to the [Fuse][futures-fs-fuse] type provided in futures-rs,
+but provides more utility allowing it to interact with types which does not
+implement [FusedFuture] or [FusedStream] as is now the case with all core
+Tokio types since 1.0.
 
 This is especially useful in combination with optional branches using
 [tokio::select], where the future being polled is optionally set. So instead
@@ -92,7 +92,7 @@ for _ in 0..10usize {
 }
 ```
 
-[Fuse]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
+[futures-fs-fuse]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
 [FusedFuture]: https://docs.rs/futures/0/futures/future/trait.FusedFuture.html
 [FusedStream]: https://docs.rs/futures/0/futures/stream/trait.FusedStream.html
 [Poll::Pending]: https://doc.rust-lang.org/std/task/enum.Poll.html#variant.Pending
