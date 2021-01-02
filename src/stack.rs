@@ -1,77 +1,27 @@
 //! Extension trait to simplify optionally polling futures.
 
+use crate::poll;
 use pin_project_lite::pin_project;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 pin_project! {
-    /// Fusing adapter for fusing a value on the stack.
+    /// A fusing adapter that might need to be pinned.
     ///
-    /// Note that this is used for values which should be pinned as they are
-    /// being polled.
-    ///
-    /// See [Stack::new] for details.
+    /// See [Stack::new] for more details.
     pub struct Stack<T> {
         #[pin]
         value: Option<T>,
     }
 }
 
-impl<T> Future for Stack<T>
-where
-    T: Future,
-{
-    type Output = T::Output;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let inner = match self.as_mut().project().value.as_pin_mut() {
-            Some(inner) => inner,
-            None => return Poll::Pending,
-        };
-
-        let value = match inner.poll(cx) {
-            Poll::Ready(value) => value,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        self.as_mut().project().value.set(None);
-        Poll::Ready(value)
-    }
-}
-
-#[cfg(feature = "stream")]
-#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-impl<T> futures_core::Stream for Stack<T>
-where
-    T: futures_core::Stream,
-{
-    type Item = T::Item;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let inner = match self.as_mut().project().value.as_pin_mut() {
-            Some(inner) => inner,
-            None => return Poll::Pending,
-        };
-
-        let value = match inner.poll_next(cx) {
-            Poll::Ready(value) => value,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        if value.is_none() {
-            self.as_mut().project().value.set(None);
-        }
-
-        Poll::Ready(value)
-    }
-}
-
 impl<T> Stack<T> {
-    /// Construct a fusing adapter that is capable of polling an interior future.
+    /// Construct a fusing adapter that might need to be pinned.
     ///
-    /// Stack the future completes, the adapter will switch to an empty state and
-    /// return [Poll::Pending] until [set][Stack::set] again.
+    /// For most operations except [poll_inner], if the value completes, the
+    /// adapter will switch to an empty state and return [Poll::Pending] until
+    /// set again.
     ///
     /// # Examples
     ///
@@ -194,7 +144,7 @@ impl<T> Stack<T> {
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
     {
-        StackPollInner { stack: self, poll }.await
+        poll::PollInner::new(ProjectStack(self), poll).await
     }
 
     /// Poll the current value with the given polling implementation.
@@ -232,7 +182,7 @@ impl<T> Stack<T> {
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
     {
-        StackPollFuture { stack: self, poll }.await
+        poll::PollFuture::new(ProjectStack(self), poll).await
     }
 
     /// Poll the current value with the given polling implementation.
@@ -275,14 +225,9 @@ impl<T> Stack<T> {
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<Option<O>>,
     {
-        StackPollStream { stack: self, poll }.await
+        poll::PollStream::new(ProjectStack(self), poll).await
     }
-}
 
-impl<T> Stack<T>
-where
-    T: Unpin,
-{
     /// Access the interior mutable value. This is only available if it
     /// implements [Unpin].
     ///
@@ -294,7 +239,10 @@ where
     ///
     /// assert!(rx.as_inner_mut().is_some());
     /// # }
-    pub fn as_inner_mut(&mut self) -> Option<&mut T> {
+    pub fn as_inner_mut(&mut self) -> Option<&mut T>
+    where
+        Self: Unpin,
+    {
         self.value.as_mut()
     }
 
@@ -319,7 +267,10 @@ where
     /// assert!(rx.is_empty());
     /// # }
     /// ```
-    pub fn as_pin_mut(&mut self) -> Pin<&mut Self> {
+    pub fn as_pin_mut(&mut self) -> Pin<&mut Self>
+    where
+        Self: Unpin,
+    {
         Pin::new(self)
     }
 
@@ -358,11 +309,61 @@ where
     #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
     pub async fn next(&mut self) -> Option<T::Item>
     where
+        Self: Unpin,
         T: futures_core::Stream,
     {
         self.as_pin_mut()
             .poll_stream(futures_core::Stream::poll_next)
             .await
+    }
+}
+
+impl<T> Future for Stack<T>
+where
+    T: Future,
+{
+    type Output = T::Output;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let inner = match self.as_mut().project().value.as_pin_mut() {
+            Some(inner) => inner,
+            None => return Poll::Pending,
+        };
+
+        let value = match inner.poll(cx) {
+            Poll::Ready(value) => value,
+            Poll::Pending => return Poll::Pending,
+        };
+
+        self.as_mut().project().value.set(None);
+        Poll::Ready(value)
+    }
+}
+
+#[cfg(feature = "stream")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+impl<T> futures_core::Stream for Stack<T>
+where
+    T: futures_core::Stream,
+{
+    type Item = T::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let inner = match self.as_mut().project().value.as_pin_mut() {
+            Some(inner) => inner,
+            None => return Poll::Pending,
+        };
+
+        let value = match inner.poll_next(cx) {
+            Poll::Ready(value) => value,
+            Poll::Pending => return Poll::Pending,
+        };
+
+        if value.is_none() {
+            self.as_mut().project().value.set(None);
+        }
+
+        Poll::Ready(value)
     }
 }
 
@@ -378,100 +379,12 @@ impl<T> Default for Stack<T> {
     }
 }
 
-pin_project! {
-    /// Future abstraction created using [Stack::poll_fn].
-    struct StackPollFuture<'a, T, P, O> where P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O> {
-        stack: Pin<&'a mut Stack<T>>,
-        poll: P,
-    }
-}
+struct ProjectStack<'a, T>(Pin<&'a mut Stack<T>>);
 
-impl<'a, T, P, O> Future for StackPollFuture<'a, T, P, O>
-where
-    P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
-{
-    type Output = O;
+impl<'a, T> poll::Project for ProjectStack<'a, T> {
+    type Value = T;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.as_mut().project();
-
-        let value = match this.stack.as_mut().project().value.as_pin_mut() {
-            Some(value) => value,
-            None => return Poll::Pending,
-        };
-
-        let output = match (this.poll)(value, cx) {
-            Poll::Ready(output) => output,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        this.stack.as_mut().project().value.set(None);
-        Poll::Ready(output)
-    }
-}
-
-pin_project! {
-    /// Future abstraction created using [Stack::poll_fn].
-    struct StackPollInner<'a, T, P, O> where P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O> {
-        stack: Pin<&'a mut Stack<T>>,
-        poll: P,
-    }
-}
-
-impl<'a, T, P, O> Future for StackPollInner<'a, T, P, O>
-where
-    P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
-{
-    type Output = O;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.as_mut().project();
-
-        let value = match this.stack.as_mut().project().value.as_pin_mut() {
-            Some(value) => value,
-            None => return Poll::Pending,
-        };
-
-        let output = match (this.poll)(value, cx) {
-            Poll::Ready(output) => output,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        Poll::Ready(output)
-    }
-}
-
-pin_project! {
-    /// Future abstraction created using [Stack::poll_stream].
-    struct StackPollStream<'a, T, P, O> where P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<Option<O>> {
-        stack: Pin<&'a mut Stack<T>>,
-        poll: P,
-    }
-}
-
-impl<'a, T, P, O> Future for StackPollStream<'a, T, P, O>
-where
-    P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<Option<O>>,
-{
-    type Output = Option<O>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.as_mut().project();
-
-        let value = match this.stack.as_mut().project().value.as_pin_mut() {
-            Some(value) => value,
-            None => return Poll::Pending,
-        };
-
-        let output = match (this.poll)(value, cx) {
-            Poll::Ready(output) => output,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        if output.is_none() {
-            this.stack.as_mut().project().value.set(None);
-        }
-
-        Poll::Ready(output)
+    fn project(&mut self) -> Pin<&mut Option<Self::Value>> {
+        self.0.as_mut().project().value
     }
 }

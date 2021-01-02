@@ -1,22 +1,23 @@
 //! Extension trait to simplify optionally polling futures.
 
+use crate::poll;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-/// Fusing adapter that is capable of polling an interior value that is
-/// being fused using a custom polling function.
+/// A fusing adapter that stores a pinned value on the heap.
 ///
-/// See [heap_fuse] for details.
+/// See [Heap::new] for more details.
 pub struct Heap<T> {
-    value: Option<Pin<Box<T>>>,
+    value: Pin<Box<Option<T>>>,
 }
 
 impl<T> Heap<T> {
-    /// Construct a fusing adapter that is capable of polling an interior future.
+    /// Construct a fusing adapter that stores a pinned value on the heap.
     ///
-    /// Heap the future completes, the adapter will switch to an empty state and
-    /// return [Poll::Pending] until [set][Heap::set] again.
+    /// For most operations except [poll_inner], if the value completes, the
+    /// adapter will switch to an empty state and return [Poll::Pending] until
+    /// [set][Heap::set] again.
     ///
     /// # Examples
     ///
@@ -38,12 +39,9 @@ impl<T> Heap<T> {
     /// assert!(!sleep.is_empty());
     /// # }
     /// ```
-    pub fn new(value: T) -> Self
-    where
-        T: Future,
-    {
+    pub fn new(value: T) -> Self {
         Heap {
-            value: Some(Box::pin(value)),
+            value: Box::pin(Some(value)),
         }
     }
 
@@ -73,8 +71,8 @@ where
     type Output = T::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let inner = match &mut self.value {
-            Some(inner) => inner.as_mut(),
+        let inner = match self.value.as_mut().as_pin_mut() {
+            Some(inner) => inner,
             None => return Poll::Pending,
         };
 
@@ -83,7 +81,7 @@ where
             Poll::Pending => return Poll::Pending,
         };
 
-        self.value = None;
+        self.value.set(None);
         Poll::Ready(value)
     }
 }
@@ -97,8 +95,8 @@ where
     type Item = T::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let inner = match &mut self.value {
-            Some(inner) => inner.as_mut(),
+        let inner = match self.value.as_mut().as_pin_mut() {
+            Some(inner) => inner,
             None => return Poll::Pending,
         };
 
@@ -108,7 +106,7 @@ where
         };
 
         if value.is_none() {
-            self.value = None;
+            self.value.set(None);
         }
 
         Poll::Ready(value)
@@ -134,7 +132,7 @@ impl<T> Heap<T> {
     /// # }
     /// ```
     pub fn set(&mut self, value: T) {
-        self.value = Some(Box::pin(value));
+        self.value.set(Some(value));
     }
 
     /// Clear the fused value.
@@ -155,7 +153,7 @@ impl<T> Heap<T> {
     /// # }
     /// ```
     pub fn clear(&mut self) {
-        self.value = None;
+        self.value.set(None);
     }
 
     /// Test if the polled for value is empty.
@@ -178,18 +176,185 @@ impl<T> Heap<T> {
     pub fn is_empty(&self) -> bool {
         self.value.is_none()
     }
+
+    /// Poll the current value with the given polling implementation.
+    ///
+    /// This can be used for types which only provides a polling function.
+    ///
+    /// This will never empty the underlying value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::sync::mpsc;
+    /// use std::future::Future;
+    ///
+    /// async fn op(n: u32) -> u32 {
+    ///     n
+    /// }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut op1 = async_fuse::Heap::new(op(1));
+    ///
+    /// assert_eq!(op1.poll_inner(|mut i, cx| i.poll(cx)).await, 1);
+    /// assert!(!op1.is_empty());
+    ///
+    /// op1.set(op(2));
+    /// assert_eq!(op1.poll_inner(|mut i, cx| i.poll(cx)).await, 2);
+    /// assert!(!op1.is_empty());
+    /// # }
+    /// ```
+    pub async fn poll_inner<P, O>(&mut self, poll: P) -> O
+    where
+        P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
+    {
+        poll::PollInner::new(ProjectHeap(self), poll).await
+    }
+
+    /// Poll the current value with the given polling implementation.
+    ///
+    /// This can be used for types which only provides a polling function.
+    ///
+    /// Once the underlying poll impl returns `Poll::Ready`, the underlying
+    /// value will be emptied.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::sync::mpsc;
+    /// use std::future::Future;
+    ///
+    /// async fn op(n: u32) -> u32 {
+    ///     n
+    /// }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut op1 = async_fuse::Heap::new(op(1));
+    ///
+    /// assert_eq!(op1.poll_future(|mut i, cx| i.poll(cx)).await, 1);
+    /// assert!(op1.is_empty());
+    ///
+    /// op1.set(op(2));
+    /// assert!(!op1.is_empty());
+    /// assert_eq!(op1.poll_future(|mut i, cx| i.poll(cx)).await, 2);
+    /// assert!(op1.is_empty());
+    /// # }
+    /// ```
+    pub async fn poll_future<P, O>(&mut self, poll: P) -> O
+    where
+        P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
+    {
+        poll::PollFuture::new(ProjectHeap(self), poll).await
+    }
+
+    /// Poll the current value with the given polling implementation.
+    ///
+    /// This can be used for types which only provides a polling function, or
+    /// types which can be polled multiple streams. Like streams which do not
+    /// provide a Stream implementation.
+    ///
+    /// Will empty the fused value once the underlying poll returns
+    /// `Poll::Ready(None)`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::sync::mpsc;
+    /// use std::future::Future;
+    /// use futures_core::Stream;
+    ///
+    /// fn op(n: u32) -> impl Stream<Item = u32> {
+    ///     async_stream::stream! {
+    ///         yield n;
+    ///         yield n + 1;
+    ///     }
+    /// }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut op1 = async_fuse::Heap::new(op(1));
+    ///
+    /// assert!(!op1.is_empty());
+    /// assert_eq!(op1.poll_stream(|mut i, cx| i.poll_next(cx)).await, Some(1));
+    /// assert_eq!(op1.poll_stream(|mut i, cx| i.poll_next(cx)).await, Some(2));
+    /// assert!(!op1.is_empty());
+    /// assert_eq!(op1.poll_stream(|mut i, cx| i.poll_next(cx)).await, None);
+    /// assert!(op1.is_empty());
+    /// # }
+    /// ```
+    pub async fn poll_stream<P, O>(&mut self, poll: P) -> Option<O>
+    where
+        P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<Option<O>>,
+    {
+        poll::PollStream::new(ProjectHeap(self), poll).await
+    }
+
+    /// Poll the next value in the stream where the underlying value is unpin.
+    ///
+    /// Behaves the same as [poll_stream], except that it only works for values
+    /// which are [Unpin].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tokio::sync::mpsc;
+    /// use std::future::Future;
+    /// use futures_core::Stream;
+    ///
+    /// fn op(n: u32) -> impl Stream<Item = u32> {
+    ///     async_stream::stream! {
+    ///         yield n;
+    ///         yield n + 1;
+    ///     }
+    /// }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut stream = async_fuse::Heap::new(op(1));
+    /// assert!(!stream.is_empty());
+    ///
+    /// assert_eq!(stream.next().await, Some(1));
+    /// assert_eq!(stream.next().await, Some(2));
+    /// assert_eq!(stream.next().await, None);
+    ///
+    /// assert!(stream.is_empty());
+    /// # }
+    /// ```
+    #[cfg(feature = "stream")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+    pub async fn next(&mut self) -> Option<T::Item>
+    where
+        Self: Unpin,
+        T: futures_core::Stream,
+    {
+        self.poll_stream(futures_core::Stream::poll_next).await
+    }
 }
 
 impl<T> From<Option<T>> for Heap<T> {
     fn from(value: Option<T>) -> Self {
         Heap {
-            value: value.map(Box::pin),
+            value: Box::pin(value),
         }
     }
 }
 
 impl<T> Default for Heap<T> {
     fn default() -> Self {
-        Self { value: None }
+        Self {
+            value: Box::pin(None),
+        }
+    }
+}
+
+struct ProjectHeap<'a, T>(&'a mut Heap<T>);
+
+impl<'a, T> poll::Project for ProjectHeap<'a, T> {
+    type Value = T;
+
+    fn project(&mut self) -> Pin<&mut Option<Self::Value>> {
+        self.0.value.as_mut()
     }
 }
