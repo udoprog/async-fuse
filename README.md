@@ -33,22 +33,23 @@ pending indefinitely and behave accordingly when polled.
 > ```
 
 ```rust
+use async_fuse::Fuse;
 use std::time::Duration;
 use tokio::time;
 
 let mut duration = Duration::from_millis(500);
 
-let sleep = async_fuse::Fuse::new(time::sleep(duration));
+let sleep = Fuse::new(time::sleep(duration));
 tokio::pin!(sleep);
 
-let update_duration = async_fuse::Fuse::new(time::sleep(Duration::from_secs(2)));
+let update_duration = Fuse::new(time::sleep(Duration::from_secs(2)));
 tokio::pin!(update_duration);
 
 for _ in 0..10usize {
     tokio::select! {
         _ = &mut sleep => {
             println!("Tick");
-            sleep.set(async_fuse::Fuse::new(time::sleep(duration)));
+            sleep.set(Fuse::new(time::sleep(duration)));
         }
         _ = &mut update_duration => {
             println!("Tick faster!");
@@ -70,13 +71,14 @@ As a result, it looks pretty similar to the above example.
 > ```
 
 ```rust
+use async_fuse::Fuse;
 use std::time::Duration;
 use tokio::time;
 
 let mut duration = Duration::from_millis(500);
 
-let mut sleep = async_fuse::Fuse::pin(time::sleep(duration));
-let mut update_duration = async_fuse::Fuse::pin(time::sleep(Duration::from_secs(2)));
+let mut sleep = Fuse::pin(time::sleep(duration));
+let mut update_duration = Fuse::pin(time::sleep(Duration::from_secs(2)));
 
 for _ in 0..10usize {
     tokio::select! {

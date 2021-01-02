@@ -1,12 +1,13 @@
 //! Extension trait to simplify optionally polling futures.
 
 use crate::poll;
-use pin_project_lite::pin_project;
+#[cfg(feature = "stream")]
+use futures_core::Stream;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pin_project! {
+pin_project_lite::pin_project! {
     /// A fusing adapter around a value.
     ///
     /// A `Fuse<T>` is similar to `Option<T>`, with the exception that it
@@ -30,6 +31,7 @@ impl<T> Fuse<Pin<Box<T>>> {
     /// # Examples
     ///
     /// ```rust
+    /// use async_fuse::Fuse;
     /// use std::future::Future;
     /// use tokio::time;
     ///
@@ -37,7 +39,7 @@ impl<T> Fuse<Pin<Box<T>>> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut fut = async_fuse::Fuse::pin(foo());
+    /// let mut fut = Fuse::pin(foo());
     /// assert!(!fut.is_empty());
     ///
     /// let value = (&mut fut).await;
@@ -57,18 +59,19 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// use async_fuse::Fuse;
     /// use std::time::Duration;
     /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Fuse::new(time::sleep(Duration::from_millis(200)));
+    /// let mut sleep = Fuse::new(time::sleep(Duration::from_millis(200)));
     /// tokio::pin!(sleep);
     ///
     /// tokio::select! {
     ///     _ = &mut sleep => {
     ///         assert!(sleep.is_empty());
-    ///         sleep.set(async_fuse::Fuse::new(time::sleep(Duration::from_millis(200))));
+    ///         sleep.set(Fuse::new(time::sleep(Duration::from_millis(200))));
     ///     }
     /// }
     ///
@@ -79,16 +82,17 @@ impl<T> Fuse<T> {
     /// # Example using an unsized trait object
     ///
     /// ```rust
+    /// use async_fuse::Fuse;
     /// use std::future::Future;
-    /// use tokio::time;
     /// use std::pin::Pin;
+    /// use tokio::time;
     ///
     /// async fn foo() -> u32 { 1 }
     /// async fn bar() -> u32 { 2 }
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut fut = async_fuse::Fuse::<Pin<Box<dyn Future<Output = u32>>>>::new(Box::pin(foo()));
+    /// let mut fut = Fuse::<Pin<Box<dyn Future<Output = u32>>>>::new(Box::pin(foo()));
     /// let mut total = 0;
     ///
     /// while !fut.is_empty() {
@@ -113,12 +117,13 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::time;
+    /// use async_fuse::Fuse;
     /// use std::time::Duration;
+    /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Fuse::new(Box::pin(time::sleep(Duration::from_millis(200))));
+    /// let mut sleep = Fuse::new(Box::pin(time::sleep(Duration::from_millis(200))));
     ///
     /// assert!(!sleep.is_empty());
     /// sleep.set(Box::pin(time::sleep(Duration::from_millis(200))));
@@ -129,16 +134,17 @@ impl<T> Fuse<T> {
     /// # Example setting an unsized trait object
     ///
     /// ```rust
+    /// use async_fuse::Fuse;
     /// use std::future::Future;
-    /// use tokio::time;
     /// use std::pin::Pin;
+    /// use tokio::time;
     ///
     /// async fn foo() -> u32 { 1 }
     /// async fn bar() -> u32 { 2 }
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut fut = async_fuse::Fuse::<Pin<Box<dyn Future<Output = u32>>>>::empty();
+    /// let mut fut = Fuse::<Pin<Box<dyn Future<Output = u32>>>>::empty();
     /// assert!(fut.is_empty());
     ///
     /// fut.set(Box::pin(foo()));
@@ -160,12 +166,13 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::time;
+    /// use async_fuse::Fuse;
     /// use std::time::Duration;
+    /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Fuse::new(Box::pin(time::sleep(Duration::from_millis(200))));
+    /// let mut sleep = Fuse::new(Box::pin(time::sleep(Duration::from_millis(200))));
     ///
     /// assert!(!sleep.is_empty());
     /// sleep.clear();
@@ -184,11 +191,12 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// use async_fuse::Fuse;
     /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Fuse::<time::Sleep>::empty();
+    /// let mut sleep = Fuse::<time::Sleep>::empty();
     /// tokio::pin!(sleep);
     ///
     /// assert!(sleep.is_empty());
@@ -203,16 +211,17 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::time;
+    /// use async_fuse::Fuse;
     /// use std::time::Duration;
+    /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Fuse::new(time::sleep(Duration::from_millis(200)));
+    /// let mut sleep = Fuse::new(time::sleep(Duration::from_millis(200)));
     /// tokio::pin!(sleep);
     ///
     /// assert!(!sleep.is_empty());
-    /// sleep.set(async_fuse::Fuse::empty());
+    /// sleep.set(Fuse::empty());
     /// assert!(sleep.is_empty());
     /// # }
     /// ```
@@ -225,16 +234,17 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::time;
+    /// use async_fuse::Fuse;
     /// use std::time::Duration;
+    /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = async_fuse::Fuse::new(time::sleep(Duration::from_millis(200)));
+    /// let mut sleep = Fuse::new(time::sleep(Duration::from_millis(200)));
     /// tokio::pin!(sleep);
     ///
     /// assert!(sleep.as_inner_ref().is_some());
-    /// sleep.set(async_fuse::Fuse::empty());
+    /// sleep.set(Fuse::empty());
     /// assert!(sleep.as_inner_ref().is_none());
     /// # }
     /// ```
@@ -251,8 +261,9 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::sync::mpsc;
+    /// use async_fuse::Fuse;
     /// use std::future::Future;
+    /// use tokio::sync::mpsc;
     ///
     /// async fn op(n: u32) -> u32 {
     ///     n
@@ -260,13 +271,13 @@ impl<T> Fuse<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = async_fuse::Fuse::new(op(1));
+    /// let op1 = Fuse::new(op(1));
     /// tokio::pin!(op1);
     ///
     /// assert_eq!(op1.as_mut().poll_inner(|mut i, cx| i.poll(cx)).await, 1);
     /// assert!(!op1.is_empty());
     ///
-    /// op1.set(async_fuse::Fuse::new(op(2)));
+    /// op1.set(Fuse::new(op(2)));
     /// assert_eq!(op1.as_mut().poll_inner(|mut i, cx| i.poll(cx)).await, 2);
     /// assert!(!op1.is_empty());
     /// # }
@@ -288,8 +299,9 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::sync::mpsc;
+    /// use async_fuse::Fuse;
     /// use std::future::Future;
+    /// use tokio::sync::mpsc;
     ///
     /// async fn op(n: u32) -> u32 {
     ///     n
@@ -297,13 +309,13 @@ impl<T> Fuse<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = async_fuse::Fuse::new(op(1));
+    /// let op1 = Fuse::new(op(1));
     /// tokio::pin!(op1);
     ///
     /// assert_eq!(op1.as_mut().poll_future(|mut i, cx| i.poll(cx)).await, 1);
     /// assert!(op1.is_empty());
     ///
-    /// op1.set(async_fuse::Fuse::new(op(2)));
+    /// op1.set(Fuse::new(op(2)));
     /// assert!(!op1.is_empty());
     /// assert_eq!(op1.as_mut().poll_future(|mut i, cx| i.poll(cx)).await, 2);
     /// assert!(op1.is_empty());
@@ -328,9 +340,9 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::sync::mpsc;
+    /// use async_fuse::{Fuse, Stream};
     /// use std::future::Future;
-    /// use futures_core::Stream;
+    /// use tokio::sync::mpsc;
     ///
     /// fn op(n: u32) -> impl Stream<Item = u32> {
     ///     async_stream::stream! {
@@ -341,7 +353,7 @@ impl<T> Fuse<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = async_fuse::Fuse::new(op(1));
+    /// let op1 = Fuse::new(op(1));
     /// tokio::pin!(op1);
     ///
     /// assert!(!op1.is_empty());
@@ -365,8 +377,10 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// use async_fuse::Fuse;
+    ///
     /// # fn main() {
-    /// let mut rx = async_fuse::Fuse::new(Box::pin(async { 42 }));
+    /// let mut rx = Fuse::new(Box::pin(async { 42 }));
     ///
     /// assert!(rx.as_inner_mut().is_some());
     /// # }
@@ -382,19 +396,20 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// use async_fuse::Fuse;
     /// use tokio::sync::mpsc;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
     /// let (tx, rx) = mpsc::unbounded_channel::<u32>();
-    /// let mut rx = async_fuse::Fuse::new(rx);
+    /// let mut rx = Fuse::new(rx);
     ///
     /// tx.send(42);
     ///
     /// // Manually poll the sleep.
     /// assert_eq!(rx.as_pin_mut().poll_stream(|mut i, cx| i.poll_recv(cx)).await, Some(42));
     ///
-    /// rx = async_fuse::Fuse::empty();
+    /// rx = Fuse::empty();
     /// assert!(rx.is_empty());
     /// # }
     /// ```
@@ -413,9 +428,9 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use tokio::sync::mpsc;
+    /// use async_fuse::{Fuse, Stream};
     /// use std::future::Future;
-    /// use futures_core::Stream;
+    /// use tokio::sync::mpsc;
     ///
     /// fn op(n: u32) -> impl Stream<Item = u32> {
     ///     async_stream::stream! {
@@ -426,7 +441,7 @@ impl<T> Fuse<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut stream = async_fuse::Fuse::new(Box::pin(op(1)));
+    /// let mut stream = Fuse::new(Box::pin(op(1)));
     /// assert!(!stream.is_empty());
     ///
     /// assert_eq!(stream.next().await, Some(1));
@@ -441,11 +456,9 @@ impl<T> Fuse<T> {
     pub async fn next(&mut self) -> Option<T::Item>
     where
         Self: Unpin,
-        T: futures_core::Stream,
+        T: Stream,
     {
-        self.as_pin_mut()
-            .poll_stream(futures_core::Stream::poll_next)
-            .await
+        self.as_pin_mut().poll_stream(Stream::poll_next).await
     }
 }
 
@@ -455,46 +468,21 @@ where
 {
     type Output = T::Output;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let inner = match self.as_mut().project().value.as_pin_mut() {
-            Some(inner) => inner,
-            None => return Poll::Pending,
-        };
-
-        let value = match inner.poll(cx) {
-            Poll::Ready(value) => value,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        self.as_mut().project().value.set(None);
-        Poll::Ready(value)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut poll::PollFuture::new(Project(self), Future::poll)).poll(cx)
     }
 }
 
 #[cfg(feature = "stream")]
 #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-impl<T> futures_core::Stream for Fuse<T>
+impl<T> Stream for Fuse<T>
 where
-    T: futures_core::Stream,
+    T: Stream,
 {
     type Item = T::Item;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let inner = match self.as_mut().project().value.as_pin_mut() {
-            Some(inner) => inner,
-            None => return Poll::Pending,
-        };
-
-        let value = match inner.poll_next(cx) {
-            Poll::Ready(value) => value,
-            Poll::Pending => return Poll::Pending,
-        };
-
-        if value.is_none() {
-            self.as_mut().project().value.set(None);
-        }
-
-        Poll::Ready(value)
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut poll::PollStream::new(Project(self), Stream::poll_next)).poll(cx)
     }
 }
 
@@ -528,7 +516,7 @@ impl<T> Default for Fuse<T> {
 
 struct Project<'a, T>(Pin<&'a mut Fuse<T>>);
 
-impl<'a, T> poll::Project for Project<'a, T> {
+impl<T> poll::Project for Project<'_, T> {
     type Value = T;
 
     fn clear(&mut self) {

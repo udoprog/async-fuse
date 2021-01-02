@@ -1,3 +1,4 @@
+use async_fuse::Fuse;
 use std::time::Duration;
 use tokio::time;
 
@@ -5,10 +6,10 @@ use tokio::time;
 async fn main() {
     let mut duration = Duration::from_millis(500);
 
-    let sleep = async_fuse::Fuse::new(time::sleep(duration));
+    let sleep = Fuse::new(time::sleep(duration));
     tokio::pin!(sleep);
 
-    let update_duration = async_fuse::Fuse::new(time::sleep(Duration::from_secs(2)));
+    let update_duration = Fuse::new(time::sleep(Duration::from_secs(2)));
     tokio::pin!(update_duration);
 
     for _ in 0..10usize {
