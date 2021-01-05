@@ -15,52 +15,88 @@
 //!
 //! We also use [Fuse] to represent optional values, just like [Option]. But
 //! [Fuse] provides implementations and functions which allow us to safely
-//! perform operations over the value when it's pinned. Like what's needed to
-//! poll a future.
-//!
-//! So we can take code that looks like this:
-//!
-//! ```rust,ignore
-//! let mut maybe_future = Some(future);
-//!
-//! tokio::select! {
-//!     // NB: The async block is necessary because the future is polled eagerly
-//!     // regardless of the condition, which could cause the `unwrap` to panic.
-//!     value = async { maybe_future.as_mut().unwrap().await }, if maybe_future.is_some() => {
-//!         /* do something */
-//!     }
-//! }
-//! ```
-//!
-//! And rewrite it into:
-//!
-//! ```rust,ignore
-//! let mut maybe_future = Fuse::new(future);
-//!
-//! tokio::select! {
-//!     value = &mut maybe_future, if !maybe_future.is_empty() => {
-//!         /* do something */
-//!     }
-//! }
-//! ```
-//!
-//! If we don't need the [else branch] to evalute, we can skip the [branch
-//! precondition]. Allowing us to further reduce it to:
-//!
-//! ```rust,ignore
-//! let mut maybe_future = Fuse::new(future);
-//!
-//! tokio::select! {
-//!     value = &mut maybe_future => {
-//!         /* do something */
-//!     }
-//! }
-//! ```
+//! perform operations over the value when it's pinned. Exactly what's needed to
+//! drive a [Stream] (see [next]) or poll a [Future] that might or might not be
+//! set.
 //!
 //! # Features
 //!
 //! * `stream` - Makes the [Fuse] implement the [Stream] trait if it contains a
 //!   stream.
+//!
+//! # Simplifying [tokio::select]
+//!
+//! One of the main uses for [Fuse] is to simplify how we use [tokio::select].
+//! In this section we'll look at how we can improve an optional branch, where
+//! the future being polled might or might not be set.
+//!
+//! ```rust
+//! # #[tokio::main]
+//! # async fn main() {
+//! let mut maybe_future = Some(async { 42u32 });
+//! tokio::pin!(maybe_future);
+//!
+//! tokio::select! {
+//!     value = async { maybe_future.as_mut().as_pin_mut().unwrap().await }, if maybe_future.is_some() => {
+//!         maybe_future.set(None);
+//!         assert_eq!(value, 42);
+//!     }
+//!     /* other branches */
+//! }
+//!
+//! assert!(maybe_future.is_none());
+//! # }
+//! ```
+//!
+//! The `async` block above is necessary because the future is polled *eagerly*
+//! regardless of the [branch precondition]. This would cause the `unwrap` to
+//! panic in case the future isn't set. We also need to explicitly set the pin
+//! to `None` after completion. Otherwise we might poll it later [which might
+//! panic].
+//!
+//! With [Fuse] we can rewrite the branch and remove the `async` block. It also
+//! unsets the future for us after completion.
+//!
+//! ```rust
+//! use async_fuse::Fuse;
+//!
+//! # #[tokio::main]
+//! # async fn main() {
+//! let mut maybe_future = Fuse::new(async { 42u32 });
+//! tokio::pin!(maybe_future);
+//!
+//! tokio::select! {
+//!     value = &mut maybe_future, if !maybe_future.is_empty() => {
+//!         assert_eq!(value, 42);
+//!     }
+//!     /* other branches */
+//! }
+//!
+//! assert!(maybe_future.is_empty());
+//! # }
+//! ```
+//!
+//! Finally if we don't need the [else branch] to evalute we can skip the
+//! [branch precondition] entirely. Allowing us to further reduce the code.
+//!
+//! ```rust
+//! use async_fuse::Fuse;
+//!
+//! # #[tokio::main]
+//! # async fn main() {
+//! let mut maybe_future = Fuse::new(async { 42u32 });
+//! tokio::pin!(maybe_future);
+//!
+//! tokio::select! {
+//!     value = &mut maybe_future => {
+//!         assert_eq!(value, 42);
+//!     }
+//!     /* other branches */
+//! }
+//!
+//! assert!(maybe_future.is_empty());
+//! # }
+//! ```
 //!
 //! # Fusing on the stack
 //!
@@ -200,12 +236,16 @@
 //! [Fuse]: https://docs.rs/async-fuse/0/async_fuse/struct.Fuse.html
 //! [FusedFuture]: https://docs.rs/futures/0/futures/future/trait.FusedFuture.html
 //! [FusedStream]: https://docs.rs/futures/0/futures/stream/trait.FusedStream.html
+//! [Future]: https://doc.rust-lang.org/std/future/trait.Future.html
 //! [futures-fs-fuse]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
 //! [Interval]: https://docs.rs/tokio/1/tokio/time/struct.Interval.html
+//! [next]: https://docs.rs/async-fuse/0/async_fuse/struct.Fuse.html#method.next
 //! [Poll::Pending]: https://doc.rust-lang.org/std/task/enum.Poll.html#variant.Pending
+//! [Stream]: https://docs.rs/futures-core/0/futures_core/stream/trait.Stream.html
 //! [Stream]: https://docs.rs/futures-core/0/futures_core/stream/trait.Stream.html
 //! [tokio::pin]: https://docs.rs/tokio/1/tokio/macro.pin.html
 //! [tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
+//! [which might panic]: https://doc.rust-lang.org/std/future/trait.Future.html#panics
 
 #![deny(missing_docs)]
 

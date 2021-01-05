@@ -9,13 +9,13 @@ use std::task::{Context, Poll};
 
 /// A fusing adapter around a value.
 ///
-/// A `Fuse<T>` is similar to `Option<T>`, with the exception that it
-/// provides and API which is more suitable for interacting with
-/// asynchronous tasks.
+/// A `Fuse<T>` is similar to `Option<T>`, with the exception that it provides
+/// and API which is more suitable for interacting with asynchronous tasks and
+/// pinned values.
 ///
-/// For most polling operations except [Fuse::poll_inner], if the value
-/// completes, the adapter will switch to an empty state and return
-/// [Poll::Pending] until updated again with [set][Fuse::set].
+/// For most polling operations (except [Fuse::poll_inner]), if the value
+/// completes, the adapter will switch to an [empty state][Fuse::empty] and
+/// return [Poll::Pending]. It can later be updated again with [set][Fuse::set].
 ///
 /// See [Fuse::new] for more details.
 pub struct Fuse<T> {
