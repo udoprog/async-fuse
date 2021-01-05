@@ -13,9 +13,9 @@ use std::task::{Context, Poll};
 /// provides and API which is more suitable for interacting with
 /// asynchronous tasks.
 ///
-/// For most polling operations except [poll_inner], if the value completes,
-/// the adapter will switch to an empty state and return [Poll::Pending]
-/// until updated again with [set][Fuse::set].
+/// For most polling operations except [Fuse::poll_inner], if the value
+/// completes, the adapter will switch to an empty state and return
+/// [Poll::Pending] until updated again with [set][Fuse::set].
 ///
 /// See [Fuse::new] for more details.
 pub struct Fuse<T> {
