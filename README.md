@@ -1,8 +1,9 @@
 # async-fuse
 
-[![Documentation](https://docs.rs/async-fuse/badge.svg)](https://docs.rs/async-fuse)
-[![Crates](https://img.shields.io/crates/v/async-fuse.svg)](https://crates.io/crates/async-fuse)
-[![Actions Status](https://github.com/udoprog/async-fuse/workflows/Rust/badge.svg)](https://github.com/udoprog/async-fuse/actions)
+[<img alt="github" src="https://img.shields.io/badge/github-udoprog/async--fuse-8da0cb?style=for-the-badge&logo=github" height="20">](https://github.com/udoprog/async-fuse)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/async-fuse.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/async-fuse)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-async--fuse-66c2a5?style=for-the-badge&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20">](https://docs.rs/async-fuse)
+[<img alt="build status" src="https://img.shields.io/github/workflow/status/udoprog/async-fuse/CI/main?style=for-the-badge" height="20">](https://github.com/udoprog/async-fuse/actions?query=branch%3Amain)
 
 Helpers for "fusing" asynchronous computations.
 
@@ -21,10 +22,14 @@ perform operations over the value when it's pinned. Exactly what's needed to
 drive a [Stream] (see [next]) or poll a [Future] that might or might not be
 set.
 
+<br>
+
 ## Features
 
 * `stream` - Makes the [Fuse] implement the [Stream] trait if it contains a
   stream.
+
+<br>
 
 ## Simplifying [tokio::select]
 
@@ -91,6 +96,8 @@ tokio::select! {
 assert!(maybe_future.is_empty());
 ```
 
+<br>
+
 ## Fusing on the stack
 
 For the first example we'll be fusing the value *on the stack* using
@@ -129,6 +136,8 @@ for _ in 0..10usize {
 }
 ```
 
+<br>
+
 ## Fusing on the heap
 
 For some types it might be easier to fuse the value on the heap. To make
@@ -165,6 +174,8 @@ for _ in 0..10usize {
     }
 }
 ```
+
+<br>
 
 ## Fusing trait objects
 
@@ -230,5 +241,3 @@ for _ in 0..10usize {
 [tokio::pin]: https://docs.rs/tokio/1/tokio/macro.pin.html
 [tokio::select]: https://docs.rs/tokio/1/tokio/macro.select.html
 [which might panic]: https://doc.rust-lang.org/std/future/trait.Future.html#panics
-
-License: MIT/Apache-2.0
