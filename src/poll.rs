@@ -14,7 +14,7 @@ pub(crate) trait Project {
     fn project(&mut self) -> Option<Pin<&mut Self::Value>>;
 }
 
-/// Future abstraction created using [crate::Fuse::poll_future].
+/// Future abstraction created using [`crate::Fuse::poll_future`].
 pub(crate) struct PollFuture<T, P, O>
 where
     P: FnMut(Pin<&mut T::Value>, &mut Context<'_>) -> Poll<O>,
@@ -68,7 +68,7 @@ where
     }
 }
 
-/// Future abstraction created using [crate::Fuse::poll_inner].
+/// Future abstraction created using [`crate::Fuse::poll_inner`].
 pub(crate) struct PollInner<T, P, O>
 where
     P: FnMut(Pin<&mut T::Value>, &mut Context<'_>) -> Poll<O>,
@@ -119,7 +119,7 @@ where
     }
 }
 
-/// Future abstraction created using [crate::Fuse::poll_stream].
+/// Future abstraction created using [`crate::Fuse::poll_stream`].
 pub(crate) struct PollStream<T, P, O>
 where
     P: FnMut(Pin<&mut T::Value>, &mut Context<'_>) -> Poll<Option<O>>,

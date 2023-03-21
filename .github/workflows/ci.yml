@@ -9,12 +9,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: ['1.56', stable]
     steps:
     - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@stable
-    - run: cargo test --workspace --all-targets --no-default-features
-    - run: cargo test --workspace --all-targets --all-features
-    - run: cargo test --workspace --doc --all-features
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{matrix.rust}}
+    - run: cargo test --all-targets --all-features
+    - run: cargo test --all-targets --no-default-features
+    - run: cargo test --doc --all-features
 
   clippy:
     runs-on: ubuntu-latest
@@ -23,7 +29,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@1.68
       with:
         components: clippy
-    - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+    - run: cargo clippy --all-features --all-targets -- -D warnings -D clippy::pedantic
 
   rustfmt:
     runs-on: ubuntu-latest
@@ -32,4 +38,4 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt
-    - run: cargo fmt --check --all
+    - run: cargo fmt --check

@@ -13,11 +13,12 @@ use std::task::{Context, Poll};
 /// and API which is more suitable for interacting with asynchronous tasks and
 /// pinned values.
 ///
-/// For most polling operations (except [Fuse::poll_inner]), if the value
+/// For most polling operations (except [`Fuse::poll_inner`]), if the value
 /// completes, the adapter will switch to an [empty state][Fuse::empty] and
-/// return [Poll::Pending]. It can later be updated again with [set][Fuse::set].
+/// return [`Poll::Pending`]. It can later be updated again with
+/// [set][Fuse::set].
 ///
-/// See [Fuse::new] for more details.
+/// See [`Fuse::new`] for more details.
 pub struct Fuse<T> {
     value: Option<T>,
 }
@@ -199,6 +200,7 @@ impl<T> Fuse<T> {
     /// assert!(sleep.is_empty());
     /// # }
     /// ```
+    #[must_use]
     pub fn empty() -> Self {
         Fuse::default()
     }
@@ -419,8 +421,8 @@ impl<T> Fuse<T> {
 
     /// Poll the next value in the stream where the underlying value is unpin.
     ///
-    /// Behaves the same as [poll_stream], except that it only works for values
-    /// which are [Unpin].
+    /// Behaves the same as [`poll_stream`], except that it only works for
+    /// values which are [Unpin].
     ///
     /// # Examples
     ///

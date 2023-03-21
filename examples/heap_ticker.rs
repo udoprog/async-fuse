@@ -13,7 +13,7 @@ async fn main() {
         tokio::select! {
             _ = &mut sleep => {
                 println!("Tick");
-                sleep.set(Box::pin(time::sleep(duration)))
+                sleep.set(Box::pin(time::sleep(duration)));
             }
             _ = &mut update_duration => {
                 println!("Tick faster!");
