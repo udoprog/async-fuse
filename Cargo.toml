@@ -9,7 +9,7 @@ documentation = "https://docs.rs/async-fuse"
 readme = "README.md"
 homepage = "https://github.com/udoprog/async-fuse"
 repository = "https://github.com/udoprog/async-fuse"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 keywords = ["async", "future", "futures"]
 categories = ["asynchronous"]
 
