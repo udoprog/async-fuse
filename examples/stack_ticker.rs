@@ -1,16 +1,15 @@
-use async_fuse::Fuse;
+use std::pin::pin;
 use std::time::Duration;
+
+use async_fuse::Fuse;
 use tokio::time;
 
 #[tokio::main]
 async fn main() {
     let mut duration = Duration::from_millis(500);
 
-    let sleep = Fuse::new(time::sleep(duration));
-    tokio::pin!(sleep);
-
-    let update_duration = Fuse::new(time::sleep(Duration::from_secs(2)));
-    tokio::pin!(update_duration);
+    let mut sleep = pin!(Fuse::new(time::sleep(duration)));
+    let mut update_duration = pin!(Fuse::new(time::sleep(Duration::from_secs(2))));
 
     for _ in 0..10usize {
         tokio::select! {

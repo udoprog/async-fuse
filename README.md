@@ -38,8 +38,9 @@ One of the main uses for [`Fuse`] is to simplify how we use
 optional branch, where the future being polled might or might not be set.
 
 ```rust
-let mut maybe_future = Some(async { 42u32 });
-tokio::pin!(maybe_future);
+use std::pin::pin;
+
+let mut maybe_future = pin!(Some(async { 42u32 }));
 
 tokio::select! {
     value = async { maybe_future.as_mut().as_pin_mut().unwrap().await }, if maybe_future.is_some() => {
@@ -62,10 +63,10 @@ With [`Fuse`] we can rewrite the branch and remove the `async` block. It also
 unsets the future for us after completion.
 
 ```rust
+use std::pin::pin;
 use async_fuse::Fuse;
 
-let mut maybe_future = Fuse::new(async { 42u32 });
-tokio::pin!(maybe_future);
+let mut maybe_future = pin!(Fuse::new(async { 42u32 }));
 
 tokio::select! {
     value = &mut maybe_future, if !maybe_future.is_empty() => {
@@ -81,10 +82,10 @@ Finally if we don't need the [else branch] to evalute we can skip the
 [branch precondition] entirely. Allowing us to further reduce the code.
 
 ```rust
+use std::pin::pin;
 use async_fuse::Fuse;
 
-let mut maybe_future = Fuse::new(async { 42u32 });
-tokio::pin!(maybe_future);
+let mut maybe_future = pin!(Fuse::new(async { 42u32 }));
 
 tokio::select! {
     value = &mut maybe_future => {
@@ -101,9 +102,8 @@ assert!(maybe_future.is_empty());
 ## Fusing on the stack
 
 For the first example we'll be fusing the value *on the stack* using
-[`tokio::pin!`]. We'll also be updating the fuse as it completes with
-another sleep with a configurable delay. Mimicking the behavior of
-[`Interval`].
+[`pin!`]. We'll also be updating the fuse as it completes with another sleep
+with a configurable delay. Mimicking the behavior of [`Interval`].
 
 > This is available as the `stack_ticker` example:
 > ```sh
@@ -111,17 +111,15 @@ another sleep with a configurable delay. Mimicking the behavior of
 > ```
 
 ```rust
+use std::pin::pin;
 use async_fuse::Fuse;
 use std::time::Duration;
 use tokio::time;
 
 let mut duration = Duration::from_millis(500);
 
-let sleep = Fuse::new(time::sleep(duration));
-tokio::pin!(sleep);
-
-let update_duration = Fuse::new(time::sleep(Duration::from_secs(2)));
-tokio::pin!(update_duration);
+let mut sleep = pin!(Fuse::new(time::sleep(duration)));
+let mut update_duration = pin!(Fuse::new(time::sleep(Duration::from_secs(2))));
 
 for _ in 0..10usize {
     tokio::select! {
@@ -195,10 +193,10 @@ Also note that because [`CoerceUnsized`] is not yet stable, we cannot use
 > ```
 
 ```rust
-use async_fuse::Fuse;
 use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
+use std::pin::Pin;
+use async_fuse::Fuse;
 use tokio::time;
 
 let mut duration = Duration::from_millis(500);
@@ -232,9 +230,9 @@ for _ in 0..10usize {
 [`Future`]: https://doc.rust-lang.org/std/future/trait.Future.html
 [`Interval`]: https://docs.rs/tokio/1/tokio/time/struct.Interval.html
 [`next`]: https://docs.rs/async-fuse/0/async_fuse/struct.Fuse.html#method.next
+[`pin!`]: https://doc.rust-lang.org/std/pin/macro.pin.html
 [`Poll::Pending`]: https://doc.rust-lang.org/std/task/enum.Poll.html#variant.Pending
 [`Stream`]: https://docs.rs/futures-core/0/futures_core/stream/trait.Stream.html
-[`tokio::pin!`]: https://docs.rs/tokio/1/tokio/macro.pin.html
 [`tokio::select!`]: https://docs.rs/tokio/1/tokio/macro.select.html
 [branch precondition]: https://docs.rs/tokio/1.0.1/tokio/macro.select.html#avoid-racy-if-preconditions
 [else branch]: https://docs.rs/tokio/1.0.1/tokio/macro.select.html

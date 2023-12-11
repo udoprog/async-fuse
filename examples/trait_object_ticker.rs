@@ -1,7 +1,8 @@
-use async_fuse::Fuse;
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
+
+use async_fuse::Fuse;
 use tokio::time;
 
 #[tokio::main]

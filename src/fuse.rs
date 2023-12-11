@@ -57,14 +57,14 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// use std::pin::pin;
     /// use async_fuse::Fuse;
     /// use std::time::Duration;
     /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = Fuse::new(time::sleep(Duration::from_millis(200)));
-    /// tokio::pin!(sleep);
+    /// let mut sleep = pin!(Fuse::new(time::sleep(Duration::from_millis(200))));
     ///
     /// tokio::select! {
     ///     _ = &mut sleep => {
@@ -189,13 +189,13 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// use std::pin::pin;
     /// use async_fuse::Fuse;
     /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = Fuse::<time::Sleep>::empty();
-    /// tokio::pin!(sleep);
+    /// let mut sleep = pin!(Fuse::<time::Sleep>::empty());
     ///
     /// assert!(sleep.is_empty());
     /// # }
@@ -210,14 +210,14 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// use std::pin::pin;
     /// use async_fuse::Fuse;
     /// use std::time::Duration;
     /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = Fuse::new(time::sleep(Duration::from_millis(200)));
-    /// tokio::pin!(sleep);
+    /// let mut sleep = pin!(Fuse::new(time::sleep(Duration::from_millis(200))));
     ///
     /// assert!(!sleep.is_empty());
     /// sleep.set(Fuse::empty());
@@ -233,14 +233,14 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use async_fuse::Fuse;
+    /// use std::pin::pin;
     /// use std::time::Duration;
+    /// use async_fuse::Fuse;
     /// use tokio::time;
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let mut sleep = Fuse::new(time::sleep(Duration::from_millis(200)));
-    /// tokio::pin!(sleep);
+    /// let mut sleep = pin!(Fuse::new(time::sleep(Duration::from_millis(200))));
     ///
     /// assert!(sleep.as_inner_ref().is_some());
     /// sleep.set(Fuse::empty());
@@ -260,8 +260,9 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use async_fuse::Fuse;
+    /// use std::pin::pin;
     /// use std::future::Future;
+    /// use async_fuse::Fuse;
     /// use tokio::sync::mpsc;
     ///
     /// async fn op(n: u32) -> u32 {
@@ -270,8 +271,7 @@ impl<T> Fuse<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = Fuse::new(op(1));
-    /// tokio::pin!(op1);
+    /// let mut op1 = pin!(Fuse::new(op(1)));
     ///
     /// assert_eq!(op1.as_mut().poll_inner(|mut i, cx| i.poll(cx)).await, 1);
     /// assert!(!op1.is_empty());
@@ -298,8 +298,9 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use async_fuse::Fuse;
+    /// use std::pin::pin;
     /// use std::future::Future;
+    /// use async_fuse::Fuse;
     /// use tokio::sync::mpsc;
     ///
     /// async fn op(n: u32) -> u32 {
@@ -308,8 +309,7 @@ impl<T> Fuse<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = Fuse::new(op(1));
-    /// tokio::pin!(op1);
+    /// let mut op1 = pin!(Fuse::new(op(1)));
     ///
     /// assert_eq!(op1.as_mut().poll_future(|mut i, cx| i.poll(cx)).await, 1);
     /// assert!(op1.is_empty());
@@ -339,8 +339,9 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use async_fuse::{Fuse, Stream};
+    /// use std::pin::pin;
     /// use std::future::Future;
+    /// use async_fuse::{Fuse, Stream};
     /// use tokio::sync::mpsc;
     ///
     /// fn op(n: u32) -> impl Stream<Item = u32> {
@@ -352,8 +353,7 @@ impl<T> Fuse<T> {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// let op1 = Fuse::new(op(1));
-    /// tokio::pin!(op1);
+    /// let mut op1 = pin!(Fuse::new(op(1)));
     ///
     /// assert!(!op1.is_empty());
     /// assert_eq!(op1.as_mut().poll_stream(|mut i, cx| i.poll_next(cx)).await, Some(1));
