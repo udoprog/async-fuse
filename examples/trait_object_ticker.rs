@@ -17,11 +17,11 @@ async fn main() {
 
     for _ in 0..10usize {
         tokio::select! {
-            _ = &mut sleep => {
+            () = &mut sleep => {
                 println!("Tick");
                 sleep.set(Box::pin(time::sleep(duration)));
             }
-            _ = &mut update_duration => {
+            () = &mut update_duration => {
                 println!("Tick faster!");
                 duration = Duration::from_millis(250);
             }
