@@ -41,7 +41,8 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: clippy
-    - run: cargo clippy --all-features --all-targets -- -D warnings -D clippy::pedantic
+    - run: cargo clippy --all-features --lib -- -D warnings -D clippy::pedantic
+    - run: cargo clippy --all-features --all-targets -- -D warnings -D clippy::pedantic -A clippy::incompatible_msrv
 
   rustfmt:
     runs-on: ubuntu-latest
