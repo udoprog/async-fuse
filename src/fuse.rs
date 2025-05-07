@@ -184,6 +184,32 @@ impl<T> Fuse<T> {
         self.value = None;
     }
 
+    /// Take the value out of the fuse.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use async_fuse::Fuse;
+    /// use std::time::Duration;
+    /// use tokio::time;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let mut sleep = Fuse::new(Box::pin(time::sleep(Duration::from_millis(200))));
+    ///
+    /// assert!(!sleep.is_empty());
+    /// let inner = sleep.take();
+    /// assert!(sleep.is_empty());
+    /// assert!(inner.is_some());
+    /// # }
+    /// ```
+    pub fn take(&mut self) -> Option<T>
+    where
+        Self: Unpin,
+    {
+        self.value.take()
+    }
+
     /// Construct an empty fuse.
     ///
     /// # Examples
