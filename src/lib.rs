@@ -16,15 +16,15 @@
 //! We also use [`Fuse`] to represent optional values, just like `Option`. But
 //! [`Fuse`] provides implementations and functions which allow us to safely
 //! perform operations over the value when it's pinned. Exactly what's needed to
-//! drive a [`Stream`] (see [`next`]) or poll a [`Future`] that might or might
-//! not be set.
+//! drive a [`Stream`][stream03] (see [`next`]) or poll a [`Future`] that might
+//! or might not be set.
 //!
 //! <br>
 //!
 //! ## Features
 //!
-//! * `stream` - Makes the [`Fuse`] implement the [`Stream`] trait if it contains a
-//!   stream.
+//! * `stream03` - Makes the [`Fuse`] implement the [`Stream`][stream03] trait
+//!   if it contains a stream from the futures-core (`0.3.x`) crate.
 //!
 //! <br>
 //!
@@ -246,11 +246,11 @@
 //! [`next`]: https://docs.rs/async-fuse/0/async_fuse/struct.Fuse.html#method.next
 //! [`pin!`]: https://doc.rust-lang.org/std/pin/macro.pin.html
 //! [`Poll::Pending`]: https://doc.rust-lang.org/std/task/enum.Poll.html#variant.Pending
-//! [`Stream`]: https://docs.rs/futures-core/0/futures_core/stream/trait.Stream.html
 //! [`tokio::select!`]: https://docs.rs/tokio/1/tokio/macro.select.html
 //! [branch precondition]: https://docs.rs/tokio/1.0.1/tokio/macro.select.html#avoid-racy-if-preconditions
 //! [else branch]: https://docs.rs/tokio/1.0.1/tokio/macro.select.html
 //! [futures-fs-fuse]: https://docs.rs/futures/0/futures/future/struct.Fuse.html
+//! [stream03]: https://docs.rs/futures-core/0/futures_core/stream/trait.Stream.html
 //! [which might panic]: https://doc.rust-lang.org/std/future/trait.Future.html#panics
 
 #![deny(missing_docs)]
@@ -267,6 +267,3 @@ mod fuse;
 mod poll;
 
 pub use self::fuse::Fuse;
-
-#[cfg(feature = "stream")]
-pub use futures_core::Stream;

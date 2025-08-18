@@ -7,10 +7,10 @@ use core::task::{Context, Poll};
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
-use crate::poll::{self, PollFuture, PollInner, Project};
+#[cfg(feature = "stream03")]
+use futures_core03::Stream as Stream03;
 
-#[cfg(feature = "stream")]
-use futures_core::Stream;
+use crate::poll::{self, PollFuture, PollInner, Project};
 
 /// A fusing adapter around a value.
 ///
@@ -469,14 +469,14 @@ impl<T> Fuse<T> {
     /// assert!(stream.is_empty());
     /// # }
     /// ```
-    #[cfg(feature = "stream")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+    #[cfg(feature = "stream03")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stream03")))]
     pub async fn next(&mut self) -> Option<T::Item>
     where
         Self: Unpin,
-        T: Stream,
+        T: Stream03,
     {
-        self.as_pin_mut().poll_stream(Stream::poll_next).await
+        self.as_pin_mut().poll_stream(Stream03::poll_next).await
     }
 
     #[inline]
@@ -499,11 +499,11 @@ where
     }
 }
 
-#[cfg(feature = "stream")]
-#[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-impl<T> Stream for Fuse<T>
+#[cfg(feature = "stream03")]
+#[cfg_attr(docsrs, doc(cfg(feature = "stream03")))]
+impl<T> Stream03 for Fuse<T>
 where
-    T: Stream,
+    T: Stream03,
 {
     type Item = T::Item;
 
@@ -511,7 +511,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut poll::PollStream::new(
             ProjectFuse(self),
-            Stream::poll_next,
+            Stream03::poll_next,
         ))
         .poll(cx)
     }

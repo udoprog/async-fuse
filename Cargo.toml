@@ -1,6 +1,6 @@
 [package]
 name = "async-fuse"
-version = "0.11.4"
+version = "1.0.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2018"
 rust-version = "1.64"
@@ -17,10 +17,10 @@ categories = ["asynchronous"]
 default = ["std"]
 std = ["alloc"]
 alloc = []
-stream = ["futures-core"]
+stream03 = ["dep:futures-core03"]
 
 [dependencies]
-futures-core = { version = "0.3.28", optional = true }
+futures-core03 = { package = "futures-core", version = "0.3.28", optional = true }
 
 [dev-dependencies]
 async-stream = "0.3.5"
