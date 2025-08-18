@@ -17,9 +17,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@1.56
+    - uses: dtolnay/rust-toolchain@1.64
     - run: cargo build --lib --no-default-features
     - run: cargo build --lib --all-features
+
+  features:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        args:
+          - ""
+          - "--no-default-features"
+          - "--no-default-features --features alloc"
+          - "--no-default-features --features alloc,std"
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - run: cargo build ${{matrix.args}}
 
   test:
     runs-on: ubuntu-latest
@@ -27,7 +42,6 @@ jobs:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo test --all-targets --all-features
-    - run: cargo test --all-targets --no-default-features
     - run: cargo test --doc --all-features
 
   clippy:
@@ -48,3 +62,13 @@ jobs:
       with:
         components: rustfmt
     - run: cargo fmt --check
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@nightly
+    - run: cargo doc
+      env:
+        RUSTFLAGS: --cfg docsrs
+        RUSTDOCFLAGS: --cfg docsrs -D warnings

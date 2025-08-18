@@ -1,8 +1,8 @@
 //! Various internal poll impls.
 
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{ready, Context, Poll};
 
 pub(crate) trait Project {
     type Value: ?Sized;
@@ -11,7 +11,7 @@ pub(crate) trait Project {
     fn clear(&mut self);
 
     /// Project the value.
-    fn project(&mut self) -> Option<Pin<&mut Self::Value>>;
+    fn project(&mut self) -> Poll<Pin<&mut Self::Value>>;
 }
 
 /// Future abstraction created using [`crate::Fuse::poll_future`].
@@ -29,10 +29,12 @@ where
     P: FnMut(Pin<&mut T::Value>, &mut Context<'_>) -> Poll<O>,
     T: Project,
 {
+    #[inline]
     pub(crate) fn new(stack: T, poll: P) -> Self {
         Self { stack, poll }
     }
 
+    #[inline]
     fn project(self: Pin<&mut Self>) -> (&mut T, &mut P) {
         // Safety: private function and caller doesn't violate pinning
         // guarantees.
@@ -50,18 +52,12 @@ where
 {
     type Output = O;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let (stack, poll) = self.project();
 
-        let value = match stack.project() {
-            Some(value) => value,
-            None => return Poll::Pending,
-        };
-
-        let output = match poll(value, cx) {
-            Poll::Ready(output) => output,
-            Poll::Pending => return Poll::Pending,
-        };
+        let value = ready!(stack.project());
+        let output = ready!(poll(value, cx));
 
         stack.clear();
         Poll::Ready(output)
@@ -83,10 +79,12 @@ where
     P: FnMut(Pin<&mut T::Value>, &mut Context<'_>) -> Poll<O>,
     T: Project,
 {
+    #[inline]
     pub(crate) fn new(stack: T, poll: P) -> Self {
         Self { stack, poll }
     }
 
+    #[inline]
     fn project(self: Pin<&mut Self>) -> (&mut T, &mut P) {
         // Safety: private function and caller doesn't violate pinning
         // guarantees.
@@ -104,18 +102,11 @@ where
 {
     type Output = O;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let (stack, poll) = self.project();
-
-        let value = match stack.project() {
-            Some(value) => value,
-            None => return Poll::Pending,
-        };
-
-        match poll(value, cx) {
-            Poll::Ready(output) => Poll::Ready(output),
-            Poll::Pending => Poll::Pending,
-        }
+        let value = ready!(stack.project());
+        poll(value, cx)
     }
 }
 
@@ -134,10 +125,12 @@ where
     P: FnMut(Pin<&mut T::Value>, &mut Context<'_>) -> Poll<Option<O>>,
     T: Project,
 {
+    #[inline]
     pub(crate) fn new(stack: T, poll: P) -> Self {
         Self { stack, poll }
     }
 
+    #[inline]
     fn project(self: Pin<&mut Self>) -> (&mut T, &mut P) {
         // Safety: private function and caller doesn't violate pinning
         // guarantees.
@@ -155,18 +148,12 @@ where
 {
     type Output = Option<O>;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let (stack, poll) = self.project();
 
-        let value = match stack.project() {
-            Some(value) => value,
-            None => return Poll::Pending,
-        };
-
-        let output = match poll(value, cx) {
-            Poll::Ready(output) => output,
-            Poll::Pending => return Poll::Pending,
-        };
+        let value = ready!(stack.project());
+        let output = ready!(poll(value, cx));
 
         if output.is_none() {
             stack.clear();
