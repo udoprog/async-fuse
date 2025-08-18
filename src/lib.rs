@@ -254,6 +254,14 @@
 //! [which might panic]: https://doc.rust-lang.org/std/future/trait.Future.html#panics
 
 #![deny(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![no_std]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
 
 mod fuse;
 mod poll;

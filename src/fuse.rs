@@ -1,11 +1,16 @@
 //! Extension trait to simplify optionally polling futures.
 
-use crate::poll;
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
+
+use crate::poll::{self, PollFuture, PollInner, Project};
+
 #[cfg(feature = "stream")]
 use futures_core::Stream;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// A fusing adapter around a value.
 ///
@@ -23,6 +28,8 @@ pub struct Fuse<T> {
     value: Option<T>,
 }
 
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl<T> Fuse<Pin<Box<T>>> {
     /// Construct a fusing adapter around a value that is already pinned.
     ///
@@ -44,6 +51,7 @@ impl<T> Fuse<Pin<Box<T>>> {
     /// assert!(fut.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub fn pin(value: T) -> Self {
         Self {
             value: Some(Box::pin(value)),
@@ -106,6 +114,7 @@ impl<T> Fuse<T> {
     /// assert_eq!(total, 3);
     /// # }
     /// ```
+    #[inline]
     pub fn new(value: T) -> Self {
         Self { value: Some(value) }
     }
@@ -152,6 +161,7 @@ impl<T> Fuse<T> {
     /// assert!(!fut.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub fn set(&mut self, value: T)
     where
         Self: Unpin,
@@ -177,6 +187,7 @@ impl<T> Fuse<T> {
     /// assert!(sleep.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub fn clear(&mut self)
     where
         Self: Unpin,
@@ -201,6 +212,7 @@ impl<T> Fuse<T> {
     /// # }
     /// ```
     #[must_use]
+    #[inline]
     pub fn empty() -> Self {
         Fuse::default()
     }
@@ -224,6 +236,7 @@ impl<T> Fuse<T> {
     /// assert!(sleep.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.value.is_none()
     }
@@ -247,6 +260,7 @@ impl<T> Fuse<T> {
     /// assert!(sleep.as_inner_ref().is_none());
     /// # }
     /// ```
+    #[inline]
     pub fn as_inner_ref(&self) -> Option<&T> {
         self.value.as_ref()
     }
@@ -281,11 +295,12 @@ impl<T> Fuse<T> {
     /// assert!(!op1.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub async fn poll_inner<P, O>(self: Pin<&mut Self>, poll: P) -> O
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
     {
-        poll::PollInner::new(Project(self), poll).await
+        PollInner::new(ProjectFuse(self), poll).await
     }
 
     /// Poll the current value with the given polling implementation.
@@ -320,11 +335,12 @@ impl<T> Fuse<T> {
     /// assert!(op1.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub async fn poll_future<P, O>(self: Pin<&mut Self>, poll: P) -> O
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<O>,
     {
-        poll::PollFuture::new(Project(self), poll).await
+        PollFuture::new(ProjectFuse(self), poll).await
     }
 
     /// Poll the current value with the given polling implementation.
@@ -363,11 +379,12 @@ impl<T> Fuse<T> {
     /// assert!(op1.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub async fn poll_stream<P, O>(self: Pin<&mut Self>, poll: P) -> Option<O>
     where
         P: FnMut(Pin<&mut T>, &mut Context<'_>) -> Poll<Option<O>>,
     {
-        poll::PollStream::new(Project(self), poll).await
+        poll::PollStream::new(ProjectFuse(self), poll).await
     }
 
     /// Access the interior mutable value. This is only available if it
@@ -383,6 +400,7 @@ impl<T> Fuse<T> {
     ///
     /// assert!(rx.as_inner_mut().is_some());
     /// # }
+    #[inline]
     pub fn as_inner_mut(&mut self) -> Option<&mut T>
     where
         Self: Unpin,
@@ -412,6 +430,7 @@ impl<T> Fuse<T> {
     /// assert!(rx.is_empty());
     /// # }
     /// ```
+    #[inline]
     pub fn as_pin_mut(&mut self) -> Pin<&mut Self>
     where
         Self: Unpin,
@@ -460,6 +479,7 @@ impl<T> Fuse<T> {
         self.as_pin_mut().poll_stream(Stream::poll_next).await
     }
 
+    #[inline]
     fn project(self: Pin<&mut Self>) -> Pin<&mut Option<T>> {
         // Safety: We're projecting into the owned pinned value field, which we
         // otherwise do not move before it's dropped.
@@ -473,8 +493,9 @@ where
 {
     type Output = T::Output;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut poll::PollFuture::new(Project(self), Future::poll)).poll(cx)
+        Pin::new(&mut PollFuture::new(ProjectFuse(self), Future::poll)).poll(cx)
     }
 }
 
@@ -486,18 +507,27 @@ where
 {
     type Item = T::Item;
 
+    #[inline]
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut poll::PollStream::new(Project(self), Stream::poll_next)).poll(cx)
+        Pin::new(&mut poll::PollStream::new(
+            ProjectFuse(self),
+            Stream::poll_next,
+        ))
+        .poll(cx)
     }
 }
 
 impl<T> From<Option<T>> for Fuse<T> {
+    #[inline]
     fn from(value: Option<T>) -> Self {
         Self { value }
     }
 }
 
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl<T> From<Box<T>> for Fuse<Pin<Box<T>>> {
+    #[inline]
     fn from(value: Box<T>) -> Self {
         Self {
             value: Some(value.into()),
@@ -505,7 +535,10 @@ impl<T> From<Box<T>> for Fuse<Pin<Box<T>>> {
     }
 }
 
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl<T> From<Option<Box<T>>> for Fuse<Pin<Box<T>>> {
+    #[inline]
     fn from(value: Option<Box<T>>) -> Self {
         Self {
             value: value.map(Into::into),
@@ -514,21 +547,27 @@ impl<T> From<Option<Box<T>>> for Fuse<Pin<Box<T>>> {
 }
 
 impl<T> Default for Fuse<T> {
+    #[inline]
     fn default() -> Self {
         Self { value: None }
     }
 }
 
-struct Project<'a, T>(Pin<&'a mut Fuse<T>>);
+struct ProjectFuse<'a, T>(Pin<&'a mut Fuse<T>>);
 
-impl<T> poll::Project for Project<'_, T> {
+impl<T> Project for ProjectFuse<'_, T> {
     type Value = T;
 
+    #[inline]
     fn clear(&mut self) {
         self.0.as_mut().project().set(None);
     }
 
-    fn project(&mut self) -> Option<Pin<&mut Self::Value>> {
-        self.0.as_mut().project().as_pin_mut()
+    #[inline]
+    fn project(&mut self) -> Poll<Pin<&mut Self::Value>> {
+        match self.0.as_mut().project().as_pin_mut() {
+            Some(value) => Poll::Ready(value),
+            None => Poll::Pending,
+        }
     }
 }
