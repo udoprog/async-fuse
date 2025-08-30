@@ -355,9 +355,11 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
+    /// # extern crate futures_core03 as futures_core;
     /// use std::pin::pin;
     /// use std::future::Future;
-    /// use async_fuse::{Fuse, Stream};
+    /// use async_fuse::Fuse;
+    /// use futures_core::Stream;
     /// use tokio::sync::mpsc;
     ///
     /// fn op(n: u32) -> impl Stream<Item = u32> {
@@ -446,8 +448,10 @@ impl<T> Fuse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use async_fuse::{Fuse, Stream};
+    /// # extern crate futures_core03 as futures_core;
     /// use std::future::Future;
+    /// use async_fuse::Fuse;
+    /// use futures_core::Stream;
     /// use tokio::sync::mpsc;
     ///
     /// fn op(n: u32) -> impl Stream<Item = u32> {
